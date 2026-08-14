@@ -4,6 +4,7 @@
 package types
 
 import (
+	bytes "bytes"
 	cosmossdk_io_math "cosmossdk.io/math"
 	fmt "fmt"
 	github_com_cosmos_cosmos_sdk_types "github.com/cosmos/cosmos-sdk/types"
@@ -32,19 +33,28 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 type OracleType int32
 
 const (
-	OracleType_Unspecified OracleType = 0
-	OracleType_Band        OracleType = 1
-	OracleType_PriceFeed   OracleType = 2
-	OracleType_Coinbase    OracleType = 3
-	OracleType_Chainlink   OracleType = 4
-	OracleType_Razor       OracleType = 5
-	OracleType_Dia         OracleType = 6
-	OracleType_API3        OracleType = 7
-	OracleType_Uma         OracleType = 8
-	OracleType_Pyth        OracleType = 9
-	OracleType_BandIBC     OracleType = 10
-	OracleType_Provider    OracleType = 11
-	OracleType_Stork       OracleType = 12
+	OracleType_Unspecified          OracleType = 0
+	OracleType_Band                 OracleType = 1 // Deprecated: Do not use.
+	OracleType_PriceFeed            OracleType = 2
+	OracleType_Coinbase             OracleType = 3
+	OracleType_Chainlink            OracleType = 4 // Deprecated: Do not use.
+	OracleType_Razor                OracleType = 5
+	OracleType_Dia                  OracleType = 6
+	OracleType_API3                 OracleType = 7
+	OracleType_Uma                  OracleType = 8
+	OracleType_Pyth                 OracleType = 9
+	OracleType_BandIBC              OracleType = 10 // Deprecated: Do not use.
+	OracleType_Provider             OracleType = 11
+	OracleType_Stork                OracleType = 12
+	OracleType_ChainlinkDataStreams OracleType = 13
+	// PythPro uses the Pyth Lazer high-frequency feed, verified via an on-chain
+	// EVM contract.
+	OracleType_PythPro OracleType = 14
+	// SedaFast relays prices from the SEDA Fast WebSocket stream, verified
+	// on-chain via secp256k1 ECDSA over keccak256(dataResultId).
+	// See
+	// https://docs.seda.xyz/home/for-developers/define-your-delivery-method/seda-fast
+	OracleType_SedaFast OracleType = 15
 )
 
 var OracleType_name = map[int32]string{
@@ -61,22 +71,28 @@ var OracleType_name = map[int32]string{
 	10: "BandIBC",
 	11: "Provider",
 	12: "Stork",
+	13: "ChainlinkDataStreams",
+	14: "PythPro",
+	15: "SedaFast",
 }
 
 var OracleType_value = map[string]int32{
-	"Unspecified": 0,
-	"Band":        1,
-	"PriceFeed":   2,
-	"Coinbase":    3,
-	"Chainlink":   4,
-	"Razor":       5,
-	"Dia":         6,
-	"API3":        7,
-	"Uma":         8,
-	"Pyth":        9,
-	"BandIBC":     10,
-	"Provider":    11,
-	"Stork":       12,
+	"Unspecified":          0,
+	"Band":                 1,
+	"PriceFeed":            2,
+	"Coinbase":             3,
+	"Chainlink":            4,
+	"Razor":                5,
+	"Dia":                  6,
+	"API3":                 7,
+	"Uma":                  8,
+	"Pyth":                 9,
+	"BandIBC":              10,
+	"Provider":             11,
+	"Stork":                12,
+	"ChainlinkDataStreams": 13,
+	"PythPro":              14,
+	"SedaFast":             15,
 }
 
 func (x OracleType) String() string {
@@ -88,7 +104,23 @@ func (OracleType) EnumDescriptor() ([]byte, []int) {
 }
 
 type Params struct {
-	PythContract string `protobuf:"bytes,1,opt,name=pyth_contract,json=pythContract,proto3" json:"pyth_contract,omitempty"`
+	PythContract                             string `protobuf:"bytes,1,opt,name=pyth_contract,json=pythContract,proto3" json:"pyth_contract,omitempty"`
+	ChainlinkVerifierProxyContract           string `protobuf:"bytes,2,opt,name=chainlink_verifier_proxy_contract,json=chainlinkVerifierProxyContract,proto3" json:"chainlink_verifier_proxy_contract,omitempty"`
+	ChainlinkDataStreamsVerificationGasLimit uint64 `protobuf:"varint,4,opt,name=chainlink_data_streams_verification_gas_limit,json=chainlinkDataStreamsVerificationGasLimit,proto3" json:"chainlink_data_streams_verification_gas_limit,omitempty"`
+	// EVM hex address of the PythLazer verifier contract deployed on Injective.
+	// Must be set via governance before PythPro price relaying is active.
+	// (optional)
+	PythProVerifierContract string `protobuf:"bytes,5,opt,name=pyth_pro_verifier_contract,json=pythProVerifierContract,proto3" json:"pyth_pro_verifier_contract,omitempty"`
+	// Gas cap for the eth_call used in PythPro update verification. Defaults to
+	// 500000.
+	PythProVerificationGasLimit uint64 `protobuf:"varint,6,opt,name=pyth_pro_verification_gas_limit,json=pythProVerificationGasLimit,proto3" json:"pyth_pro_verification_gas_limit,omitempty"`
+	// Fee in wei passed as msg.value to the PythLazer verifyUpdate call.
+	// Update via governance if the on-chain contract fee changes. Defaults to 1.
+	PythProVerificationFee uint64 `protobuf:"varint,7,opt,name=pyth_pro_verification_fee,json=pythProVerificationFee,proto3" json:"pyth_pro_verification_fee,omitempty"`
+	// seda_fast_params groups all SEDA Fast oracle configuration. An empty
+	// public_key disables MsgRelaySedaFastPrices handling until set via
+	// MsgUpdateParams.
+	SedaFastParams SedaFastParams `protobuf:"bytes,8,opt,name=seda_fast_params,json=sedaFastParams,proto3" json:"seda_fast_params"`
 }
 
 func (m *Params) Reset()         { *m = Params{} }
@@ -131,6 +163,118 @@ func (m *Params) GetPythContract() string {
 	return ""
 }
 
+func (m *Params) GetChainlinkVerifierProxyContract() string {
+	if m != nil {
+		return m.ChainlinkVerifierProxyContract
+	}
+	return ""
+}
+
+func (m *Params) GetChainlinkDataStreamsVerificationGasLimit() uint64 {
+	if m != nil {
+		return m.ChainlinkDataStreamsVerificationGasLimit
+	}
+	return 0
+}
+
+func (m *Params) GetPythProVerifierContract() string {
+	if m != nil {
+		return m.PythProVerifierContract
+	}
+	return ""
+}
+
+func (m *Params) GetPythProVerificationGasLimit() uint64 {
+	if m != nil {
+		return m.PythProVerificationGasLimit
+	}
+	return 0
+}
+
+func (m *Params) GetPythProVerificationFee() uint64 {
+	if m != nil {
+		return m.PythProVerificationFee
+	}
+	return 0
+}
+
+func (m *Params) GetSedaFastParams() SedaFastParams {
+	if m != nil {
+		return m.SedaFastParams
+	}
+	return SedaFastParams{}
+}
+
+// SedaFastParams holds the on-chain configuration for the SEDA Fast oracle.
+// See
+// https://docs.seda.xyz/home/for-developers/define-your-delivery-method/seda-fast
+type SedaFastParams struct {
+	// SEC1 secp256k1 public key published by SEDA Fast at GET /info.
+	// Compressed (33 B, 0x02/0x03 prefix) or uncompressed (65 B, 0x04 prefix).
+	// Empty value disables all MsgRelaySedaFastPrices handling.
+	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// Allowlist of execProgramIds whose dataResult.result payload is an ASCII
+	// decimal string (e.g. "384.48255"), parsed as LegacyDec.
+	SimpleProgramIds []string `protobuf:"bytes,2,rep,name=simple_program_ids,json=simpleProgramIds,proto3" json:"simple_program_ids,omitempty"`
+	// Allowlist of execProgramIds whose dataResult.result payload is a UTF-8
+	// JSON object containing {price:{mantissa,expo},...}.
+	JsonProgramIds []string `protobuf:"bytes,3,rep,name=json_program_ids,json=jsonProgramIds,proto3" json:"json_program_ids,omitempty"`
+}
+
+func (m *SedaFastParams) Reset()         { *m = SedaFastParams{} }
+func (m *SedaFastParams) String() string { return proto.CompactTextString(m) }
+func (*SedaFastParams) ProtoMessage()    {}
+func (*SedaFastParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1c8fbf1e7a765423, []int{1}
+}
+func (m *SedaFastParams) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SedaFastParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SedaFastParams.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SedaFastParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SedaFastParams.Merge(m, src)
+}
+func (m *SedaFastParams) XXX_Size() int {
+	return m.Size()
+}
+func (m *SedaFastParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_SedaFastParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SedaFastParams proto.InternalMessageInfo
+
+func (m *SedaFastParams) GetPublicKey() []byte {
+	if m != nil {
+		return m.PublicKey
+	}
+	return nil
+}
+
+func (m *SedaFastParams) GetSimpleProgramIds() []string {
+	if m != nil {
+		return m.SimpleProgramIds
+	}
+	return nil
+}
+
+func (m *SedaFastParams) GetJsonProgramIds() []string {
+	if m != nil {
+		return m.JsonProgramIds
+	}
+	return nil
+}
+
 type OracleInfo struct {
 	Symbol     string     `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"`
 	OracleType OracleType `protobuf:"varint,2,opt,name=oracle_type,json=oracleType,proto3,enum=injective.oracle.v1beta1.OracleType" json:"oracle_type,omitempty"`
@@ -140,7 +284,7 @@ func (m *OracleInfo) Reset()         { *m = OracleInfo{} }
 func (m *OracleInfo) String() string { return proto.CompactTextString(m) }
 func (*OracleInfo) ProtoMessage()    {}
 func (*OracleInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{1}
+	return fileDescriptor_1c8fbf1e7a765423, []int{2}
 }
 func (m *OracleInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -183,6 +327,7 @@ func (m *OracleInfo) GetOracleType() OracleType {
 	return OracleType_Unspecified
 }
 
+// Deprecated: Do not use.
 type ChainlinkPriceState struct {
 	FeedId     string                      `protobuf:"bytes,1,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
 	Answer     cosmossdk_io_math.LegacyDec `protobuf:"bytes,2,opt,name=answer,proto3,customtype=cosmossdk.io/math.LegacyDec" json:"answer"`
@@ -194,7 +339,7 @@ func (m *ChainlinkPriceState) Reset()         { *m = ChainlinkPriceState{} }
 func (m *ChainlinkPriceState) String() string { return proto.CompactTextString(m) }
 func (*ChainlinkPriceState) ProtoMessage()    {}
 func (*ChainlinkPriceState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{2}
+	return fileDescriptor_1c8fbf1e7a765423, []int{3}
 }
 func (m *ChainlinkPriceState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -244,6 +389,9 @@ func (m *ChainlinkPriceState) GetPriceState() PriceState {
 	return PriceState{}
 }
 
+// DEPRECATED! Oracle price from Band is no longer supported
+//
+// Deprecated: Do not use.
 type BandPriceState struct {
 	Symbol      string                `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"`
 	Rate        cosmossdk_io_math.Int `protobuf:"bytes,2,opt,name=rate,proto3,customtype=cosmossdk.io/math.Int" json:"rate"`
@@ -256,7 +404,7 @@ func (m *BandPriceState) Reset()         { *m = BandPriceState{} }
 func (m *BandPriceState) String() string { return proto.CompactTextString(m) }
 func (*BandPriceState) ProtoMessage()    {}
 func (*BandPriceState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{3}
+	return fileDescriptor_1c8fbf1e7a765423, []int{4}
 }
 func (m *BandPriceState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -324,7 +472,7 @@ func (m *PriceFeedState) Reset()         { *m = PriceFeedState{} }
 func (m *PriceFeedState) String() string { return proto.CompactTextString(m) }
 func (*PriceFeedState) ProtoMessage()    {}
 func (*PriceFeedState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{4}
+	return fileDescriptor_1c8fbf1e7a765423, []int{5}
 }
 func (m *PriceFeedState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -390,7 +538,7 @@ func (m *ProviderInfo) Reset()         { *m = ProviderInfo{} }
 func (m *ProviderInfo) String() string { return proto.CompactTextString(m) }
 func (*ProviderInfo) ProtoMessage()    {}
 func (*ProviderInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{5}
+	return fileDescriptor_1c8fbf1e7a765423, []int{6}
 }
 func (m *ProviderInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -442,7 +590,7 @@ func (m *ProviderState) Reset()         { *m = ProviderState{} }
 func (m *ProviderState) String() string { return proto.CompactTextString(m) }
 func (*ProviderState) ProtoMessage()    {}
 func (*ProviderState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{6}
+	return fileDescriptor_1c8fbf1e7a765423, []int{7}
 }
 func (m *ProviderState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -494,7 +642,7 @@ func (m *ProviderPriceState) Reset()         { *m = ProviderPriceState{} }
 func (m *ProviderPriceState) String() string { return proto.CompactTextString(m) }
 func (*ProviderPriceState) ProtoMessage()    {}
 func (*ProviderPriceState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{7}
+	return fileDescriptor_1c8fbf1e7a765423, []int{8}
 }
 func (m *ProviderPriceState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -546,7 +694,7 @@ func (m *PriceFeedInfo) Reset()         { *m = PriceFeedInfo{} }
 func (m *PriceFeedInfo) String() string { return proto.CompactTextString(m) }
 func (*PriceFeedInfo) ProtoMessage()    {}
 func (*PriceFeedInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{8}
+	return fileDescriptor_1c8fbf1e7a765423, []int{9}
 }
 func (m *PriceFeedInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -597,7 +745,7 @@ func (m *PriceFeedPrice) Reset()         { *m = PriceFeedPrice{} }
 func (m *PriceFeedPrice) String() string { return proto.CompactTextString(m) }
 func (*PriceFeedPrice) ProtoMessage()    {}
 func (*PriceFeedPrice) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{9}
+	return fileDescriptor_1c8fbf1e7a765423, []int{10}
 }
 func (m *PriceFeedPrice) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -643,7 +791,7 @@ func (m *CoinbasePriceState) Reset()         { *m = CoinbasePriceState{} }
 func (m *CoinbasePriceState) String() string { return proto.CompactTextString(m) }
 func (*CoinbasePriceState) ProtoMessage()    {}
 func (*CoinbasePriceState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{10}
+	return fileDescriptor_1c8fbf1e7a765423, []int{11}
 }
 func (m *CoinbasePriceState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -722,7 +870,7 @@ func (m *StorkPriceState) Reset()         { *m = StorkPriceState{} }
 func (m *StorkPriceState) String() string { return proto.CompactTextString(m) }
 func (*StorkPriceState) ProtoMessage()    {}
 func (*StorkPriceState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{11}
+	return fileDescriptor_1c8fbf1e7a765423, []int{12}
 }
 func (m *StorkPriceState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -782,7 +930,7 @@ func (m *PriceState) Reset()         { *m = PriceState{} }
 func (m *PriceState) String() string { return proto.CompactTextString(m) }
 func (*PriceState) ProtoMessage()    {}
 func (*PriceState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{12}
+	return fileDescriptor_1c8fbf1e7a765423, []int{13}
 }
 func (m *PriceState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -831,7 +979,7 @@ func (m *PythPriceState) Reset()         { *m = PythPriceState{} }
 func (m *PythPriceState) String() string { return proto.CompactTextString(m) }
 func (*PythPriceState) ProtoMessage()    {}
 func (*PythPriceState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{13}
+	return fileDescriptor_1c8fbf1e7a765423, []int{14}
 }
 func (m *PythPriceState) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -881,6 +1029,86 @@ func (m *PythPriceState) GetPriceState() PriceState {
 	return PriceState{}
 }
 
+type ChainlinkDataStreamsPriceState struct {
+	FeedId                string                `protobuf:"bytes,1,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
+	ReportPrice           cosmossdk_io_math.Int `protobuf:"bytes,2,opt,name=report_price,json=reportPrice,proto3,customtype=cosmossdk.io/math.Int" json:"report_price"`
+	ValidFromTimestamp    uint64                `protobuf:"varint,3,opt,name=valid_from_timestamp,json=validFromTimestamp,proto3" json:"valid_from_timestamp,omitempty"`
+	ObservationsTimestamp uint64                `protobuf:"varint,4,opt,name=observations_timestamp,json=observationsTimestamp,proto3" json:"observations_timestamp,omitempty"`
+	PriceState            PriceState            `protobuf:"bytes,5,opt,name=price_state,json=priceState,proto3" json:"price_state"`
+	ExpiresAt             uint64                `protobuf:"varint,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+}
+
+func (m *ChainlinkDataStreamsPriceState) Reset()         { *m = ChainlinkDataStreamsPriceState{} }
+func (m *ChainlinkDataStreamsPriceState) String() string { return proto.CompactTextString(m) }
+func (*ChainlinkDataStreamsPriceState) ProtoMessage()    {}
+func (*ChainlinkDataStreamsPriceState) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1c8fbf1e7a765423, []int{15}
+}
+func (m *ChainlinkDataStreamsPriceState) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ChainlinkDataStreamsPriceState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ChainlinkDataStreamsPriceState.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ChainlinkDataStreamsPriceState) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ChainlinkDataStreamsPriceState.Merge(m, src)
+}
+func (m *ChainlinkDataStreamsPriceState) XXX_Size() int {
+	return m.Size()
+}
+func (m *ChainlinkDataStreamsPriceState) XXX_DiscardUnknown() {
+	xxx_messageInfo_ChainlinkDataStreamsPriceState.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ChainlinkDataStreamsPriceState proto.InternalMessageInfo
+
+func (m *ChainlinkDataStreamsPriceState) GetFeedId() string {
+	if m != nil {
+		return m.FeedId
+	}
+	return ""
+}
+
+func (m *ChainlinkDataStreamsPriceState) GetValidFromTimestamp() uint64 {
+	if m != nil {
+		return m.ValidFromTimestamp
+	}
+	return 0
+}
+
+func (m *ChainlinkDataStreamsPriceState) GetObservationsTimestamp() uint64 {
+	if m != nil {
+		return m.ObservationsTimestamp
+	}
+	return 0
+}
+
+func (m *ChainlinkDataStreamsPriceState) GetPriceState() PriceState {
+	if m != nil {
+		return m.PriceState
+	}
+	return PriceState{}
+}
+
+func (m *ChainlinkDataStreamsPriceState) GetExpiresAt() uint64 {
+	if m != nil {
+		return m.ExpiresAt
+	}
+	return 0
+}
+
+// DEPRECATED! Oracle price from Band is no longer supported
+//
+// Deprecated: Do not use.
 type BandOracleRequest struct {
 	// Unique Identifier for band ibc oracle request
 	RequestId uint64 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -912,7 +1140,7 @@ func (m *BandOracleRequest) Reset()         { *m = BandOracleRequest{} }
 func (m *BandOracleRequest) String() string { return proto.CompactTextString(m) }
 func (*BandOracleRequest) ProtoMessage()    {}
 func (*BandOracleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{14}
+	return fileDescriptor_1c8fbf1e7a765423, []int{16}
 }
 func (m *BandOracleRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1004,6 +1232,9 @@ func (m *BandOracleRequest) GetMinSourceCount() uint64 {
 	return 0
 }
 
+// DEPRECATED! Oracle price from Band is no longer supported
+//
+// Deprecated: Do not use.
 type BandIBCParams struct {
 	// true if Band IBC should be enabled
 	BandIbcEnabled bool `protobuf:"varint,1,opt,name=band_ibc_enabled,json=bandIbcEnabled,proto3" json:"band_ibc_enabled,omitempty"`
@@ -1023,7 +1254,7 @@ func (m *BandIBCParams) Reset()         { *m = BandIBCParams{} }
 func (m *BandIBCParams) String() string { return proto.CompactTextString(m) }
 func (*BandIBCParams) ProtoMessage()    {}
 func (*BandIBCParams) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{15}
+	return fileDescriptor_1c8fbf1e7a765423, []int{17}
 }
 func (m *BandIBCParams) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1104,7 +1335,7 @@ func (m *SymbolPriceTimestamp) Reset()         { *m = SymbolPriceTimestamp{} }
 func (m *SymbolPriceTimestamp) String() string { return proto.CompactTextString(m) }
 func (*SymbolPriceTimestamp) ProtoMessage()    {}
 func (*SymbolPriceTimestamp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{16}
+	return fileDescriptor_1c8fbf1e7a765423, []int{18}
 }
 func (m *SymbolPriceTimestamp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1162,7 +1393,7 @@ func (m *LastPriceTimestamps) Reset()         { *m = LastPriceTimestamps{} }
 func (m *LastPriceTimestamps) String() string { return proto.CompactTextString(m) }
 func (*LastPriceTimestamps) ProtoMessage()    {}
 func (*LastPriceTimestamps) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{17}
+	return fileDescriptor_1c8fbf1e7a765423, []int{19}
 }
 func (m *LastPriceTimestamps) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1208,7 +1439,7 @@ func (m *PriceRecords) Reset()         { *m = PriceRecords{} }
 func (m *PriceRecords) String() string { return proto.CompactTextString(m) }
 func (*PriceRecords) ProtoMessage()    {}
 func (*PriceRecords) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{18}
+	return fileDescriptor_1c8fbf1e7a765423, []int{20}
 }
 func (m *PriceRecords) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1267,7 +1498,7 @@ func (m *PriceRecord) Reset()         { *m = PriceRecord{} }
 func (m *PriceRecord) String() string { return proto.CompactTextString(m) }
 func (*PriceRecord) ProtoMessage()    {}
 func (*PriceRecord) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{19}
+	return fileDescriptor_1c8fbf1e7a765423, []int{21}
 }
 func (m *PriceRecord) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1335,7 +1566,7 @@ func (m *MetadataStatistics) Reset()         { *m = MetadataStatistics{} }
 func (m *MetadataStatistics) String() string { return proto.CompactTextString(m) }
 func (*MetadataStatistics) ProtoMessage()    {}
 func (*MetadataStatistics) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{20}
+	return fileDescriptor_1c8fbf1e7a765423, []int{22}
 }
 func (m *MetadataStatistics) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1408,7 +1639,7 @@ func (m *PriceAttestation) Reset()         { *m = PriceAttestation{} }
 func (m *PriceAttestation) String() string { return proto.CompactTextString(m) }
 func (*PriceAttestation) ProtoMessage()    {}
 func (*PriceAttestation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{21}
+	return fileDescriptor_1c8fbf1e7a765423, []int{23}
 }
 func (m *PriceAttestation) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1502,7 +1733,7 @@ func (m *AssetPair) Reset()         { *m = AssetPair{} }
 func (m *AssetPair) String() string { return proto.CompactTextString(m) }
 func (*AssetPair) ProtoMessage()    {}
 func (*AssetPair) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{22}
+	return fileDescriptor_1c8fbf1e7a765423, []int{24}
 }
 func (m *AssetPair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1556,7 +1787,7 @@ func (m *SignedPriceOfAssetPair) Reset()         { *m = SignedPriceOfAssetPair{}
 func (m *SignedPriceOfAssetPair) String() string { return proto.CompactTextString(m) }
 func (*SignedPriceOfAssetPair) ProtoMessage()    {}
 func (*SignedPriceOfAssetPair) Descriptor() ([]byte, []int) {
-	return fileDescriptor_1c8fbf1e7a765423, []int{23}
+	return fileDescriptor_1c8fbf1e7a765423, []int{25}
 }
 func (m *SignedPriceOfAssetPair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1606,11 +1837,216 @@ func (m *SignedPriceOfAssetPair) GetSignature() []byte {
 	return nil
 }
 
+type ChainlinkReport struct {
+	FeedId                []byte `protobuf:"bytes,1,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
+	FullReport            []byte `protobuf:"bytes,2,opt,name=full_report,json=fullReport,proto3" json:"full_report,omitempty"`
+	ValidFromTimestamp    uint64 `protobuf:"varint,3,opt,name=valid_from_timestamp,json=validFromTimestamp,proto3" json:"valid_from_timestamp,omitempty"`
+	ObservationsTimestamp uint64 `protobuf:"varint,4,opt,name=observations_timestamp,json=observationsTimestamp,proto3" json:"observations_timestamp,omitempty"`
+}
+
+func (m *ChainlinkReport) Reset()         { *m = ChainlinkReport{} }
+func (m *ChainlinkReport) String() string { return proto.CompactTextString(m) }
+func (*ChainlinkReport) ProtoMessage()    {}
+func (*ChainlinkReport) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1c8fbf1e7a765423, []int{26}
+}
+func (m *ChainlinkReport) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ChainlinkReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ChainlinkReport.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ChainlinkReport) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ChainlinkReport.Merge(m, src)
+}
+func (m *ChainlinkReport) XXX_Size() int {
+	return m.Size()
+}
+func (m *ChainlinkReport) XXX_DiscardUnknown() {
+	xxx_messageInfo_ChainlinkReport.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ChainlinkReport proto.InternalMessageInfo
+
+func (m *ChainlinkReport) GetFeedId() []byte {
+	if m != nil {
+		return m.FeedId
+	}
+	return nil
+}
+
+func (m *ChainlinkReport) GetFullReport() []byte {
+	if m != nil {
+		return m.FullReport
+	}
+	return nil
+}
+
+func (m *ChainlinkReport) GetValidFromTimestamp() uint64 {
+	if m != nil {
+		return m.ValidFromTimestamp
+	}
+	return 0
+}
+
+func (m *ChainlinkReport) GetObservationsTimestamp() uint64 {
+	if m != nil {
+		return m.ObservationsTimestamp
+	}
+	return 0
+}
+
+// PythProPriceState holds the verified price state for a single PythPro feed.
+type PythProPriceState struct {
+	// feed_id is the uint32 Pyth Lazer feed identifier.
+	FeedId uint32 `protobuf:"varint,1,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
+	// timestamp is the price timestamp extracted from the verified payload
+	// (microseconds from epoch).
+	Timestamp uint64 `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// price_state holds the verified price, cumulative price, and block
+	// timestamp.
+	PriceState PriceState `protobuf:"bytes,3,opt,name=price_state,json=priceState,proto3" json:"price_state"`
+}
+
+func (m *PythProPriceState) Reset()         { *m = PythProPriceState{} }
+func (m *PythProPriceState) String() string { return proto.CompactTextString(m) }
+func (*PythProPriceState) ProtoMessage()    {}
+func (*PythProPriceState) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1c8fbf1e7a765423, []int{27}
+}
+func (m *PythProPriceState) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PythProPriceState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PythProPriceState.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PythProPriceState) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PythProPriceState.Merge(m, src)
+}
+func (m *PythProPriceState) XXX_Size() int {
+	return m.Size()
+}
+func (m *PythProPriceState) XXX_DiscardUnknown() {
+	xxx_messageInfo_PythProPriceState.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PythProPriceState proto.InternalMessageInfo
+
+func (m *PythProPriceState) GetFeedId() uint32 {
+	if m != nil {
+		return m.FeedId
+	}
+	return 0
+}
+
+func (m *PythProPriceState) GetTimestamp() uint64 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *PythProPriceState) GetPriceState() PriceState {
+	if m != nil {
+		return m.PriceState
+	}
+	return PriceState{}
+}
+
+// SedaFastPriceState holds the verified price state for a single SEDA Fast
+// feed.
+type SedaFastPriceState struct {
+	// feed_id is the hex-encoded execInputs string from the SEDA Fast
+	// dataRequest. It is the stable on-chain identity of the feed, invariant
+	// across relayer restarts and per-execution result IDs.
+	FeedId string `protobuf:"bytes,1,opt,name=feed_id,json=feedId,proto3" json:"feed_id,omitempty"`
+	// timestamp is the dataResult.blockTimestamp value (milliseconds from
+	// epoch) extracted from the verified SEDA Fast response.
+	Timestamp uint64 `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// price_state holds the verified price, cumulative price, and block
+	// timestamp.
+	PriceState PriceState `protobuf:"bytes,3,opt,name=price_state,json=priceState,proto3" json:"price_state"`
+}
+
+func (m *SedaFastPriceState) Reset()         { *m = SedaFastPriceState{} }
+func (m *SedaFastPriceState) String() string { return proto.CompactTextString(m) }
+func (*SedaFastPriceState) ProtoMessage()    {}
+func (*SedaFastPriceState) Descriptor() ([]byte, []int) {
+	return fileDescriptor_1c8fbf1e7a765423, []int{28}
+}
+func (m *SedaFastPriceState) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SedaFastPriceState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SedaFastPriceState.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SedaFastPriceState) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SedaFastPriceState.Merge(m, src)
+}
+func (m *SedaFastPriceState) XXX_Size() int {
+	return m.Size()
+}
+func (m *SedaFastPriceState) XXX_DiscardUnknown() {
+	xxx_messageInfo_SedaFastPriceState.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SedaFastPriceState proto.InternalMessageInfo
+
+func (m *SedaFastPriceState) GetFeedId() string {
+	if m != nil {
+		return m.FeedId
+	}
+	return ""
+}
+
+func (m *SedaFastPriceState) GetTimestamp() uint64 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *SedaFastPriceState) GetPriceState() PriceState {
+	if m != nil {
+		return m.PriceState
+	}
+	return PriceState{}
+}
+
 func init() {
 	proto.RegisterEnum("injective.oracle.v1beta1.OracleType", OracleType_name, OracleType_value)
 	golang_proto.RegisterEnum("injective.oracle.v1beta1.OracleType", OracleType_name, OracleType_value)
 	proto.RegisterType((*Params)(nil), "injective.oracle.v1beta1.Params")
 	golang_proto.RegisterType((*Params)(nil), "injective.oracle.v1beta1.Params")
+	proto.RegisterType((*SedaFastParams)(nil), "injective.oracle.v1beta1.SedaFastParams")
+	golang_proto.RegisterType((*SedaFastParams)(nil), "injective.oracle.v1beta1.SedaFastParams")
 	proto.RegisterType((*OracleInfo)(nil), "injective.oracle.v1beta1.OracleInfo")
 	golang_proto.RegisterType((*OracleInfo)(nil), "injective.oracle.v1beta1.OracleInfo")
 	proto.RegisterType((*ChainlinkPriceState)(nil), "injective.oracle.v1beta1.ChainlinkPriceState")
@@ -1637,6 +2073,8 @@ func init() {
 	golang_proto.RegisterType((*PriceState)(nil), "injective.oracle.v1beta1.PriceState")
 	proto.RegisterType((*PythPriceState)(nil), "injective.oracle.v1beta1.PythPriceState")
 	golang_proto.RegisterType((*PythPriceState)(nil), "injective.oracle.v1beta1.PythPriceState")
+	proto.RegisterType((*ChainlinkDataStreamsPriceState)(nil), "injective.oracle.v1beta1.ChainlinkDataStreamsPriceState")
+	golang_proto.RegisterType((*ChainlinkDataStreamsPriceState)(nil), "injective.oracle.v1beta1.ChainlinkDataStreamsPriceState")
 	proto.RegisterType((*BandOracleRequest)(nil), "injective.oracle.v1beta1.BandOracleRequest")
 	golang_proto.RegisterType((*BandOracleRequest)(nil), "injective.oracle.v1beta1.BandOracleRequest")
 	proto.RegisterType((*BandIBCParams)(nil), "injective.oracle.v1beta1.BandIBCParams")
@@ -1657,6 +2095,12 @@ func init() {
 	golang_proto.RegisterType((*AssetPair)(nil), "injective.oracle.v1beta1.AssetPair")
 	proto.RegisterType((*SignedPriceOfAssetPair)(nil), "injective.oracle.v1beta1.SignedPriceOfAssetPair")
 	golang_proto.RegisterType((*SignedPriceOfAssetPair)(nil), "injective.oracle.v1beta1.SignedPriceOfAssetPair")
+	proto.RegisterType((*ChainlinkReport)(nil), "injective.oracle.v1beta1.ChainlinkReport")
+	golang_proto.RegisterType((*ChainlinkReport)(nil), "injective.oracle.v1beta1.ChainlinkReport")
+	proto.RegisterType((*PythProPriceState)(nil), "injective.oracle.v1beta1.PythProPriceState")
+	golang_proto.RegisterType((*PythProPriceState)(nil), "injective.oracle.v1beta1.PythProPriceState")
+	proto.RegisterType((*SedaFastPriceState)(nil), "injective.oracle.v1beta1.SedaFastPriceState")
+	golang_proto.RegisterType((*SedaFastPriceState)(nil), "injective.oracle.v1beta1.SedaFastPriceState")
 }
 
 func init() {
@@ -1667,120 +2111,146 @@ func init() {
 }
 
 var fileDescriptor_1c8fbf1e7a765423 = []byte{
-	// 1794 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x58, 0xcd, 0x8f, 0x1c, 0x47,
-	0x15, 0xdf, 0x9e, 0xef, 0x7e, 0xf3, 0xb1, 0xed, 0xda, 0xb5, 0x19, 0x3b, 0xc9, 0xec, 0xd2, 0xc1,
-	0x30, 0xb2, 0x92, 0x19, 0xdb, 0x39, 0x20, 0x07, 0x84, 0xe2, 0x5d, 0xdb, 0x68, 0xe4, 0x85, 0xac,
-	0x7a, 0x6d, 0x90, 0xb8, 0x0c, 0x35, 0xdd, 0x35, 0x3b, 0x95, 0xed, 0xaf, 0x74, 0xf5, 0x6c, 0x3c,
-	0x96, 0xb8, 0xe6, 0xc0, 0x05, 0xfe, 0x01, 0x24, 0xce, 0x39, 0x71, 0x80, 0x13, 0x12, 0x42, 0x9c,
-	0x72, 0x23, 0xa7, 0x08, 0x71, 0x08, 0x60, 0x1f, 0x40, 0x5c, 0xf9, 0x07, 0xd0, 0xab, 0xaa, 0xee,
-	0xe9, 0xdd, 0x8d, 0xbd, 0x3b, 0x04, 0x5f, 0x76, 0xab, 0x5e, 0xbd, 0xf7, 0xea, 0xf7, 0x3e, 0xea,
-	0xbd, 0xd7, 0x03, 0xd7, 0x79, 0xf8, 0x01, 0x73, 0x53, 0x7e, 0xcc, 0x86, 0x51, 0x42, 0x5d, 0x9f,
-	0x0d, 0x8f, 0x6f, 0x4d, 0x58, 0x4a, 0x6f, 0xe9, 0xed, 0x20, 0x4e, 0xa2, 0x34, 0x22, 0xdd, 0x9c,
-	0x6d, 0xa0, 0xe9, 0x9a, 0xed, 0xda, 0xe6, 0x61, 0x74, 0x18, 0x49, 0xa6, 0x21, 0xae, 0x14, 0xff,
-	0xb5, 0x9e, 0x1b, 0x89, 0x20, 0x12, 0xc3, 0x09, 0x15, 0x4b, 0x8d, 0x6e, 0xc4, 0x43, 0x7d, 0x7e,
-	0x89, 0x06, 0x3c, 0x8c, 0x86, 0xf2, 0xaf, 0x22, 0xd9, 0xf7, 0xa1, 0xb6, 0x4f, 0x13, 0x1a, 0x08,
-	0xf2, 0x26, 0xb4, 0xe3, 0x45, 0x3a, 0x1b, 0xbb, 0x51, 0x98, 0x26, 0xd4, 0x4d, 0xbb, 0xc6, 0xb6,
-	0xd1, 0x37, 0x9d, 0x16, 0x12, 0x77, 0x35, 0xed, 0xdd, 0x2b, 0xff, 0xfa, 0xf5, 0x96, 0xf1, 0xf3,
-	0x7f, 0xfe, 0xe6, 0x46, 0x5b, 0xe3, 0x56, 0xc2, 0xf6, 0x11, 0xc0, 0xfb, 0x92, 0x30, 0x0a, 0xa7,
-	0x11, 0xb9, 0x02, 0x35, 0xb1, 0x08, 0x26, 0x91, 0xaf, 0x75, 0xe8, 0x1d, 0xb9, 0x0f, 0x4d, 0x25,
-	0x36, 0x4e, 0x17, 0x31, 0xeb, 0x96, 0xb6, 0x8d, 0x7e, 0xe7, 0xf6, 0x37, 0x06, 0x2f, 0xb2, 0x72,
-	0xa0, 0x54, 0x3e, 0x5a, 0xc4, 0xcc, 0x81, 0x28, 0x5f, 0xdb, 0x9f, 0x1b, 0xb0, 0xb1, 0x3b, 0xa3,
-	0x3c, 0xf4, 0x79, 0x78, 0xb4, 0x9f, 0x70, 0x97, 0x1d, 0xa4, 0x34, 0x65, 0xe4, 0x6b, 0x50, 0x9f,
-	0x32, 0xe6, 0x8d, 0xb9, 0x97, 0xdd, 0x8b, 0xdb, 0x91, 0x47, 0xbe, 0x03, 0x35, 0x1a, 0x8a, 0x8f,
-	0x58, 0x22, 0xaf, 0x34, 0x77, 0xde, 0xfc, 0xf4, 0x8b, 0xad, 0xb5, 0xbf, 0x7e, 0xb1, 0xf5, 0x9a,
-	0xf2, 0x97, 0xf0, 0x8e, 0x06, 0x3c, 0x1a, 0x06, 0x34, 0x9d, 0x0d, 0xf6, 0xd8, 0x21, 0x75, 0x17,
-	0xf7, 0x98, 0xeb, 0x68, 0x11, 0xf2, 0x3a, 0x98, 0x29, 0x0f, 0x98, 0x48, 0x69, 0x10, 0x77, 0xcb,
-	0xdb, 0x46, 0xbf, 0xe2, 0x2c, 0x09, 0xe4, 0x21, 0x34, 0x63, 0x44, 0x30, 0x16, 0x08, 0xa1, 0x5b,
-	0xd9, 0x36, 0xfa, 0xcd, 0x97, 0x99, 0xb4, 0x84, 0xbb, 0x53, 0x41, 0x14, 0x0e, 0xc4, 0x39, 0xc5,
-	0xfe, 0xb7, 0x01, 0x9d, 0x1d, 0x1a, 0x7a, 0x05, 0x9b, 0x5e, 0xe4, 0xca, 0x5b, 0x50, 0x49, 0xf0,
-	0x42, 0x65, 0xd0, 0x1b, 0xda, 0xa0, 0xcb, 0x67, 0x0d, 0x1a, 0x85, 0xa9, 0x23, 0x59, 0xc9, 0xd7,
-	0xa1, 0x95, 0x30, 0x11, 0xf9, 0xc7, 0x6c, 0x8c, 0xf8, 0xb5, 0x2d, 0x4d, 0x4d, 0x7b, 0xc4, 0x03,
-	0x46, 0xde, 0x00, 0x48, 0xd8, 0x87, 0x73, 0x26, 0xd2, 0xf1, 0xe8, 0x9e, 0x34, 0xa6, 0xe2, 0x98,
-	0x9a, 0x32, 0xba, 0x77, 0xda, 0xd8, 0xea, 0x57, 0x32, 0xf6, 0x57, 0x06, 0x74, 0x24, 0xc3, 0x03,
-	0xc6, 0x3c, 0x65, 0x2c, 0x81, 0x0a, 0xa6, 0xae, 0x36, 0x55, 0xae, 0xc9, 0x26, 0x54, 0x3f, 0x9c,
-	0x47, 0x99, 0xa5, 0x8e, 0xda, 0x60, 0x26, 0x15, 0x91, 0x94, 0x2f, 0x8e, 0xa4, 0x88, 0x81, 0x5c,
-	0x83, 0x46, 0xc2, 0x7c, 0xba, 0x60, 0x89, 0xe8, 0x56, 0xb6, 0xcb, 0x7d, 0xd3, 0xc9, 0xf7, 0xf6,
-	0x03, 0x68, 0xed, 0x27, 0xd1, 0x31, 0xf7, 0x58, 0x22, 0x93, 0xfa, 0x1a, 0x34, 0x62, 0xbd, 0xd7,
-	0x00, 0xf3, 0xfd, 0x09, 0x3d, 0xa5, 0x53, 0x7a, 0xfe, 0x60, 0x40, 0x3b, 0x53, 0xa4, 0x6e, 0x7d,
-	0x08, 0xed, 0x4c, 0x72, 0xcc, 0xc3, 0x69, 0x24, 0xd5, 0x35, 0x6f, 0x7f, 0xf3, 0x65, 0xf0, 0x97,
-	0x40, 0x9c, 0x56, 0x5c, 0x84, 0xf5, 0x53, 0xb8, 0x9c, 0x2b, 0x2b, 0xb8, 0x44, 0xe1, 0x68, 0xde,
-	0x7e, 0xeb, 0x7c, 0xa5, 0x05, 0xdf, 0x6c, 0xc4, 0x67, 0x68, 0xc2, 0x9e, 0x01, 0x39, 0xcb, 0xfa,
-	0xc2, 0xc4, 0x7c, 0x17, 0xaa, 0x2a, 0x26, 0xa5, 0x15, 0x62, 0xa2, 0x44, 0xec, 0x3b, 0xe8, 0x29,
-	0x9d, 0x11, 0xd2, 0xb8, 0x0b, 0x27, 0x84, 0xfd, 0xb0, 0x90, 0x4c, 0x72, 0x41, 0xee, 0x40, 0x55,
-	0xfa, 0x43, 0x09, 0x5f, 0xec, 0xcd, 0x2b, 0x09, 0xfb, 0xf7, 0x06, 0x90, 0xdd, 0x88, 0x87, 0x78,
-	0x5f, 0xc1, 0x64, 0x02, 0x95, 0x23, 0x1e, 0x66, 0xc5, 0x45, 0xae, 0x4f, 0x56, 0x87, 0xd2, 0xe9,
-	0xea, 0x60, 0x41, 0xf9, 0x88, 0x2d, 0x64, 0x7a, 0x9a, 0x0e, 0x2e, 0x11, 0xfd, 0x31, 0xf5, 0xe7,
-	0x4c, 0x3f, 0x2e, 0xb5, 0xf9, 0xff, 0x3e, 0xac, 0x3f, 0x1b, 0xb0, 0x7e, 0x90, 0x46, 0x49, 0xb1,
-	0x34, 0x9e, 0x80, 0x69, 0x9c, 0x86, 0xb9, 0x8c, 0x65, 0xe9, 0x44, 0x2c, 0xef, 0x64, 0x60, 0xcb,
-	0x2b, 0xb8, 0xf0, 0x15, 0x58, 0xf4, 0x3b, 0x03, 0xa0, 0x60, 0xcc, 0xff, 0x1e, 0x59, 0xf2, 0x43,
-	0xb0, 0xdc, 0x79, 0x30, 0xf7, 0x29, 0x62, 0x50, 0xef, 0x65, 0x95, 0x9e, 0xb0, 0xbe, 0x14, 0x56,
-	0x49, 0x76, 0xa6, 0x39, 0x94, 0x0b, 0x7e, 0xb5, 0x3f, 0x2f, 0x41, 0x67, 0x7f, 0x91, 0xce, 0x0a,
-	0xd8, 0xaf, 0x62, 0x15, 0x41, 0xbf, 0xe4, 0x4d, 0xaa, 0x2e, 0xf7, 0x23, 0x8f, 0xbc, 0x07, 0x26,
-	0x0b, 0xe8, 0xea, 0xa0, 0x1a, 0x2c, 0xa0, 0x0a, 0xcd, 0xf7, 0x00, 0xd7, 0xd8, 0xc1, 0xa7, 0xab,
-	0x84, 0xac, 0xce, 0x02, 0xba, 0x1b, 0x85, 0x53, 0xf2, 0x6d, 0xa8, 0x48, 0xd9, 0xca, 0xc5, 0x65,
-	0xa5, 0x00, 0xb6, 0x96, 0x78, 0x3e, 0xf1, 0xb9, 0x98, 0xa9, 0xd6, 0x52, 0x55, 0xad, 0x45, 0xd3,
-	0x64, 0x6b, 0x39, 0x95, 0x10, 0xb5, 0xaf, 0x94, 0x10, 0x1f, 0x97, 0xe1, 0x12, 0x36, 0x4a, 0x35,
-	0x20, 0x38, 0xaa, 0x41, 0x15, 0xbb, 0x97, 0xf6, 0x6e, 0xa1, 0x7b, 0x79, 0xa4, 0x0f, 0x96, 0x9e,
-	0x3e, 0x84, 0x9b, 0xf0, 0x58, 0x32, 0x95, 0x64, 0xc8, 0x3a, 0x8a, 0x7e, 0x20, 0xc9, 0x23, 0x8f,
-	0x74, 0xa1, 0xae, 0x5e, 0x80, 0xe8, 0x96, 0x65, 0x35, 0xcf, 0xb6, 0xe4, 0x35, 0x30, 0xa9, 0x38,
-	0x1a, 0xbb, 0xd1, 0x3c, 0x4c, 0xf5, 0x13, 0x6e, 0x50, 0x71, 0xb4, 0x8b, 0x7b, 0x3c, 0x0c, 0x78,
-	0xa8, 0x0f, 0x95, 0x0b, 0x1a, 0x01, 0x0f, 0xd5, 0xe1, 0x0c, 0xcc, 0x29, 0x63, 0x63, 0x9f, 0x07,
-	0x3c, 0xed, 0xd6, 0x64, 0x6d, 0xbe, 0x3a, 0x50, 0x9e, 0x1d, 0x60, 0x9d, 0xc9, 0x0d, 0xc7, 0xc2,
-	0xb3, 0x73, 0x13, 0x4d, 0xfe, 0xe4, 0x6f, 0x5b, 0xfd, 0x43, 0x9e, 0xce, 0xe6, 0x93, 0x81, 0x1b,
-	0x05, 0x43, 0x3d, 0xdc, 0xa9, 0x7f, 0x6f, 0x0b, 0xef, 0x68, 0x88, 0x53, 0x94, 0x90, 0x02, 0xc2,
-	0x69, 0x4c, 0x19, 0xdb, 0x43, 0xe5, 0x64, 0x0b, 0x3d, 0xcd, 0x62, 0x9a, 0xb0, 0xf1, 0x21, 0x15,
-	0xdd, 0xba, 0x04, 0x02, 0x9a, 0xf4, 0x7d, 0x2a, 0x90, 0x81, 0x3d, 0x61, 0xee, 0x3c, 0x55, 0x0c,
-	0x0d, 0xc5, 0xa0, 0x49, 0xc8, 0xd0, 0x07, 0x0b, 0x0d, 0x11, 0xd1, 0x3c, 0x71, 0x99, 0xb6, 0xc7,
-	0x94, 0x5c, 0x9d, 0x80, 0x87, 0x07, 0x92, 0x2c, 0xad, 0xb2, 0x3f, 0x2e, 0x41, 0x1b, 0x03, 0x31,
-	0xda, 0xd9, 0xd5, 0x63, 0x64, 0x1f, 0xac, 0x09, 0x0d, 0xbd, 0x31, 0x9f, 0xb8, 0x63, 0x16, 0xd2,
-	0x89, 0xcf, 0x54, 0x28, 0x1a, 0x4e, 0x07, 0xe9, 0xa3, 0x89, 0x7b, 0x5f, 0x51, 0xc9, 0x4d, 0xd8,
-	0x44, 0xa6, 0x3c, 0x64, 0x61, 0xca, 0x92, 0x63, 0xea, 0xeb, 0x98, 0x10, 0x3e, 0x71, 0x75, 0x60,
-	0x47, 0xfa, 0x84, 0xbc, 0x05, 0x48, 0xcd, 0x71, 0xcd, 0x68, 0x18, 0x32, 0x5f, 0x57, 0x57, 0x8b,
-	0x4f, 0x5c, 0x8d, 0x4c, 0xd1, 0xd1, 0x4c, 0xe4, 0x3e, 0x66, 0x89, 0xe0, 0x51, 0xa8, 0x92, 0xda,
-	0x01, 0x3e, 0x71, 0x7f, 0xa4, 0x28, 0xa4, 0xa7, 0x18, 0xe2, 0x28, 0x91, 0xb9, 0x50, 0x95, 0x0c,
-	0x26, 0x9f, 0xb8, 0xfb, 0x51, 0x82, 0x69, 0x70, 0x03, 0x2e, 0xf9, 0x32, 0xd1, 0xc7, 0x3a, 0x6f,
-	0xb8, 0x27, 0x64, 0xe8, 0xca, 0xce, 0xba, 0x3a, 0xd0, 0x33, 0xaf, 0x27, 0xec, 0x5f, 0x18, 0xb0,
-	0x79, 0x20, 0x93, 0x44, 0x26, 0xee, 0xa3, 0xbc, 0xb6, 0x7e, 0x17, 0x6a, 0x4a, 0x5a, 0x7a, 0xe1,
-	0xa2, 0xe3, 0xae, 0x96, 0xc1, 0x94, 0x52, 0xa9, 0x97, 0x25, 0xab, 0xe9, 0x34, 0x14, 0x61, 0xe4,
-	0x9d, 0x53, 0x7c, 0x16, 0xb0, 0xb1, 0x47, 0x45, 0x7a, 0x12, 0x8e, 0x20, 0x13, 0xb8, 0xec, 0x53,
-	0x91, 0xea, 0x59, 0x21, 0x67, 0x17, 0x5d, 0x43, 0xe6, 0xe4, 0xe0, 0xc5, 0xf0, 0xbe, 0xcc, 0x3c,
-	0x67, 0xc3, 0x3f, 0x7b, 0x87, 0xfd, 0x27, 0x03, 0x67, 0x27, 0xee, 0x32, 0x87, 0xb9, 0x51, 0xe2,
-	0x89, 0x57, 0xe9, 0x84, 0x1f, 0xc3, 0xa6, 0x8f, 0x63, 0x4a, 0x66, 0x51, 0xa2, 0xae, 0x94, 0x0f,
-	0xb7, 0x79, 0xfb, 0xfa, 0x39, 0x05, 0x46, 0x01, 0x74, 0x88, 0x52, 0x51, 0xc4, 0x6c, 0x4f, 0xa1,
-	0x59, 0xd8, 0x9f, 0xed, 0xa0, 0x45, 0x67, 0x2f, 0x5b, 0x52, 0x69, 0xe5, 0x61, 0xe3, 0x3f, 0x65,
-	0x20, 0x3f, 0x60, 0x29, 0xf5, 0x68, 0x4a, 0xb1, 0xba, 0x71, 0x91, 0x72, 0x57, 0x3e, 0xd2, 0xc3,
-	0x24, 0x9a, 0xc7, 0xfa, 0xf9, 0xe1, 0x8d, 0x6d, 0x07, 0x24, 0x49, 0x15, 0x94, 0x01, 0x6c, 0x68,
-	0x5b, 0xc7, 0x82, 0x06, 0x31, 0x96, 0x35, 0xfe, 0x54, 0x01, 0x68, 0x3b, 0x97, 0xf4, 0xd1, 0x81,
-	0x3c, 0x39, 0xe0, 0x4f, 0x19, 0x16, 0xf7, 0x80, 0xd1, 0x70, 0x95, 0xc6, 0x20, 0x05, 0x50, 0x30,
-	0xfd, 0x88, 0xc6, 0x2b, 0x75, 0x05, 0x14, 0x20, 0xdf, 0x82, 0xf5, 0x29, 0x4f, 0x44, 0xba, 0xcc,
-	0x32, 0xf9, 0xc6, 0xca, 0x4e, 0x47, 0x92, 0x97, 0x6f, 0xe4, 0x3a, 0x74, 0x64, 0x4e, 0x2e, 0xf9,
-	0x6a, 0x92, 0xaf, 0x8d, 0xd4, 0x25, 0xdb, 0x7b, 0xaa, 0xbe, 0x2a, 0x47, 0xd7, 0x57, 0x68, 0x90,
-	0x01, 0x0f, 0x55, 0x83, 0x44, 0x0d, 0xf4, 0x89, 0xd6, 0xd0, 0x58, 0x45, 0x03, 0x7d, 0xa2, 0x34,
-	0x3c, 0x80, 0x56, 0xc0, 0x3c, 0x4e, 0x33, 0x18, 0xe6, 0xc5, 0x95, 0x34, 0x95, 0xa0, 0xd4, 0x63,
-	0xff, 0xc3, 0x00, 0x4b, 0xae, 0xee, 0xa6, 0x98, 0x79, 0x34, 0xc5, 0x82, 0xf4, 0x92, 0xe1, 0x60,
-	0xb3, 0x98, 0x60, 0xe5, 0x6c, 0x9c, 0x21, 0xba, 0x61, 0xab, 0x4f, 0x39, 0xd5, 0x8b, 0x09, 0x54,
-	0xd8, 0x93, 0x38, 0x92, 0xe1, 0xaa, 0x3a, 0x72, 0x8d, 0x2f, 0x68, 0x39, 0x5a, 0xa8, 0x18, 0x2c,
-	0xa7, 0x86, 0xab, 0x85, 0xa9, 0xa1, 0x26, 0x15, 0xe5, 0x03, 0x81, 0x3e, 0x92, 0xfa, 0xea, 0x52,
-	0x1f, 0x1e, 0xdd, 0x47, 0x95, 0xa7, 0x5b, 0x7e, 0x43, 0x6a, 0x2d, 0xb6, 0x7c, 0xfb, 0x67, 0x60,
-	0xde, 0x15, 0x82, 0xa5, 0xfb, 0x94, 0x27, 0xa8, 0x8a, 0xe2, 0xa6, 0x60, 0x9b, 0xdc, 0x8f, 0x3c,
-	0xf2, 0x18, 0xda, 0x82, 0x1f, 0x86, 0xcc, 0x53, 0x00, 0xb3, 0x4f, 0x97, 0x9b, 0x2f, 0x29, 0x45,
-	0x92, 0x5d, 0xc2, 0x7f, 0x7f, 0x9a, 0xdf, 0xe1, 0xb4, 0xc4, 0x92, 0x2e, 0xec, 0xdf, 0x1a, 0x70,
-	0xe5, 0xcb, 0x19, 0xe5, 0x6f, 0x1d, 0x0a, 0x28, 0x4b, 0xc6, 0x38, 0xa1, 0x67, 0xbf, 0x75, 0x64,
-	0xc4, 0x87, 0x6c, 0x71, 0xce, 0x68, 0x9f, 0xbf, 0xf8, 0xf2, 0xca, 0x43, 0xe8, 0xeb, 0x60, 0x22,
-	0x50, 0x9a, 0xce, 0x13, 0xf5, 0x1d, 0xd0, 0x72, 0x96, 0x84, 0x1b, 0x9f, 0x18, 0xd9, 0x6f, 0x29,
-	0x58, 0x04, 0xc9, 0x3a, 0x34, 0x1f, 0x87, 0x22, 0x66, 0x2e, 0x9f, 0x72, 0xe6, 0x59, 0x6b, 0xa4,
-	0x01, 0x15, 0xec, 0xb8, 0x96, 0x41, 0xda, 0x60, 0xe6, 0xdf, 0x3c, 0x56, 0x89, 0xb4, 0xa0, 0x91,
-	0x7d, 0xb4, 0x58, 0x65, 0x3c, 0xcc, 0x7f, 0x23, 0xb1, 0x2a, 0xc4, 0x84, 0xaa, 0x43, 0x9f, 0x46,
-	0x89, 0x55, 0x25, 0x75, 0x28, 0xdf, 0xe3, 0xd4, 0xaa, 0xa1, 0xa6, 0xbb, 0xfb, 0xa3, 0x77, 0xac,
-	0x3a, 0x92, 0x1e, 0x07, 0xd4, 0x6a, 0x20, 0x09, 0x07, 0x56, 0xcb, 0x24, 0x4d, 0xa8, 0xeb, 0xc6,
-	0x6e, 0x01, 0xaa, 0xce, 0x3e, 0x01, 0xad, 0x26, 0xea, 0x92, 0xdf, 0x17, 0x56, 0x6b, 0xe7, 0x83,
-	0x4f, 0x9f, 0xf5, 0x8c, 0xcf, 0x9e, 0xf5, 0x8c, 0xbf, 0x3f, 0xeb, 0x19, 0xbf, 0x7c, 0xde, 0x5b,
-	0xfb, 0xe3, 0xf3, 0x9e, 0xf1, 0xd9, 0xf3, 0xde, 0xda, 0x5f, 0x9e, 0xf7, 0xd6, 0x7e, 0xb2, 0x57,
-	0x98, 0x5e, 0x46, 0x59, 0x2c, 0xf7, 0xe8, 0x44, 0x0c, 0xf3, 0xc8, 0xbe, 0xed, 0x46, 0x09, 0x2b,
-	0x6e, 0x11, 0xf3, 0x30, 0x88, 0xbc, 0xb9, 0xcf, 0x44, 0xf6, 0xe3, 0x98, 0x9c, 0x73, 0x26, 0x35,
-	0xf9, 0x8b, 0xd5, 0x3b, 0xff, 0x0d, 0x00, 0x00, 0xff, 0xff, 0x3f, 0xe6, 0xeb, 0x89, 0x3d, 0x13,
-	0x00, 0x00,
+	// 2223 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x59, 0x4f, 0x6f, 0x1c, 0x49,
+	0x15, 0x4f, 0xcf, 0x8c, 0xed, 0x99, 0x37, 0x7f, 0xdc, 0xae, 0x38, 0xd9, 0x89, 0xb3, 0x3b, 0xce,
+	0xce, 0x12, 0xb0, 0xa2, 0xcd, 0x38, 0xc9, 0x0a, 0xa1, 0x64, 0x11, 0x4a, 0x6c, 0xc7, 0xab, 0xc1,
+	0x81, 0xb5, 0xda, 0x49, 0x40, 0x5c, 0x9a, 0x9a, 0xee, 0x1a, 0xbb, 0xe2, 0xe9, 0xae, 0xde, 0xae,
+	0x1e, 0xaf, 0x27, 0x12, 0x5f, 0x20, 0x12, 0x5a, 0x6e, 0x70, 0x41, 0xe2, 0xcc, 0x89, 0x03, 0x9c,
+	0x90, 0x10, 0xe2, 0xb4, 0x37, 0x72, 0x42, 0x68, 0x0f, 0x0b, 0x24, 0x07, 0x90, 0x90, 0xb8, 0xf0,
+	0x05, 0xd0, 0xab, 0xaa, 0xee, 0x69, 0xff, 0x8d, 0x67, 0xc3, 0xee, 0xc5, 0xee, 0x7a, 0xf5, 0xde,
+	0xeb, 0xdf, 0x7b, 0xf5, 0xaa, 0xde, 0xaf, 0x7a, 0xe0, 0x2a, 0x0f, 0x9f, 0x30, 0x2f, 0xe1, 0x7b,
+	0x6c, 0x59, 0xc4, 0xd4, 0x1b, 0xb0, 0xe5, 0xbd, 0x9b, 0x3d, 0x96, 0xd0, 0x9b, 0x66, 0xd8, 0x89,
+	0x62, 0x91, 0x08, 0xd2, 0xcc, 0xd4, 0x3a, 0x46, 0x6e, 0xd4, 0x16, 0xe6, 0xb7, 0xc5, 0xb6, 0x50,
+	0x4a, 0xcb, 0xf8, 0xa4, 0xf5, 0x17, 0x5a, 0x9e, 0x90, 0x81, 0x90, 0xcb, 0x3d, 0x2a, 0xc7, 0x1e,
+	0x3d, 0xc1, 0x43, 0x33, 0x3f, 0x47, 0x03, 0x1e, 0x8a, 0x65, 0xf5, 0x57, 0x8b, 0xda, 0x9f, 0x94,
+	0x60, 0x7a, 0x93, 0xc6, 0x34, 0x90, 0xe4, 0x1d, 0xa8, 0x47, 0xa3, 0x64, 0xc7, 0xf5, 0x44, 0x98,
+	0xc4, 0xd4, 0x4b, 0x9a, 0xd6, 0x15, 0x6b, 0xa9, 0xe2, 0xd4, 0x50, 0xb8, 0x6a, 0x64, 0xa4, 0x0b,
+	0x6f, 0x7b, 0x3b, 0x94, 0x87, 0x03, 0x1e, 0xee, 0xba, 0x7b, 0x2c, 0xe6, 0x7d, 0xce, 0x62, 0x37,
+	0x8a, 0xc5, 0xfe, 0x68, 0x6c, 0x58, 0x50, 0x86, 0xad, 0x4c, 0xf1, 0xb1, 0xd1, 0xdb, 0x44, 0xb5,
+	0xcc, 0x95, 0x0b, 0xd7, 0xc7, 0xae, 0x7c, 0x9a, 0x50, 0x57, 0x26, 0x31, 0xa3, 0x81, 0x34, 0x7e,
+	0x3d, 0x9a, 0x70, 0x11, 0xba, 0xdb, 0x54, 0xba, 0x03, 0x1e, 0xf0, 0xa4, 0x59, 0xba, 0x62, 0x2d,
+	0x95, 0x9c, 0xa5, 0xcc, 0x68, 0x8d, 0x26, 0x74, 0x4b, 0x9b, 0x3c, 0xce, 0x59, 0x7c, 0x40, 0xe5,
+	0x03, 0xd4, 0x27, 0xef, 0xc3, 0x82, 0x0a, 0x28, 0x8a, 0xc5, 0x18, 0x6a, 0x06, 0x72, 0x4a, 0x81,
+	0x7c, 0x03, 0x35, 0x36, 0x63, 0x91, 0x42, 0xcc, 0xd0, 0xad, 0xc1, 0xe2, 0x21, 0xe3, 0x23, 0x78,
+	0xa6, 0x15, 0x9e, 0xcb, 0x07, 0x3c, 0x1c, 0x82, 0x70, 0x1b, 0x2e, 0x1d, 0xef, 0xa5, 0xcf, 0x58,
+	0x73, 0x46, 0xd9, 0x5f, 0x3c, 0xc6, 0x7e, 0x9d, 0x31, 0xf2, 0x43, 0xb0, 0x25, 0xf3, 0xa9, 0xdb,
+	0xa7, 0x32, 0x71, 0x23, 0xb5, 0x44, 0xcd, 0xf2, 0x15, 0x6b, 0xa9, 0x7a, 0x6b, 0xa9, 0x73, 0x52,
+	0x5d, 0x74, 0xb6, 0x98, 0x4f, 0xd7, 0xa9, 0x4c, 0xf4, 0x92, 0xae, 0x94, 0x3e, 0xfd, 0x7c, 0xf1,
+	0x9c, 0xd3, 0x90, 0x07, 0xa4, 0x77, 0x2e, 0xfe, 0xeb, 0x57, 0x8b, 0xd6, 0xb3, 0x7f, 0xfe, 0xe6,
+	0x5a, 0xdd, 0x14, 0x9f, 0x96, 0x7f, 0xb7, 0x54, 0x2e, 0xda, 0xa5, 0xf6, 0x4f, 0x2d, 0x68, 0x1c,
+	0x74, 0x43, 0xde, 0x02, 0x88, 0x86, 0xbd, 0x01, 0xf7, 0xdc, 0x5d, 0x36, 0x52, 0x65, 0x51, 0x73,
+	0x2a, 0x5a, 0xb2, 0xc1, 0x46, 0xe4, 0x5d, 0x20, 0x92, 0x07, 0xd1, 0x80, 0x61, 0x98, 0xdb, 0x31,
+	0x0d, 0x5c, 0xee, 0xcb, 0x66, 0xe1, 0x4a, 0x71, 0xa9, 0xe2, 0xd8, 0x7a, 0x66, 0x53, 0x4f, 0x74,
+	0x7d, 0x49, 0x96, 0xc0, 0x7e, 0x22, 0x45, 0x78, 0x40, 0xb7, 0xa8, 0x74, 0x1b, 0x28, 0x1f, 0x6b,
+	0xde, 0x29, 0x21, 0xce, 0xf6, 0x2e, 0xc0, 0x87, 0x0a, 0x66, 0x37, 0xec, 0x0b, 0x72, 0x11, 0xa6,
+	0xe5, 0x28, 0xe8, 0x89, 0x81, 0xa9, 0x4e, 0x33, 0x22, 0xf7, 0xa1, 0xaa, 0x83, 0x71, 0x93, 0x51,
+	0xc4, 0x54, 0x05, 0x36, 0x6e, 0x7d, 0xed, 0xe4, 0x44, 0x69, 0x97, 0x0f, 0x47, 0x11, 0x73, 0x40,
+	0x64, 0xcf, 0xed, 0xcf, 0x2c, 0x38, 0xbf, 0x9a, 0xd6, 0xd7, 0x66, 0xcc, 0x3d, 0xb6, 0x95, 0xd0,
+	0x84, 0x91, 0x37, 0x60, 0xa6, 0xcf, 0x98, 0xef, 0x72, 0x3f, 0x7d, 0x2f, 0x0e, 0xbb, 0x3e, 0x79,
+	0x1f, 0xa6, 0x69, 0x28, 0x3f, 0x66, 0xb1, 0x2e, 0xfa, 0x95, 0x77, 0x30, 0xe3, 0x9f, 0x7d, 0xbe,
+	0x78, 0x59, 0x6f, 0x45, 0xe9, 0xef, 0x76, 0xb8, 0x58, 0x0e, 0x68, 0xb2, 0xd3, 0x79, 0xc0, 0xb6,
+	0xa9, 0x37, 0x5a, 0x63, 0x9e, 0x63, 0x4c, 0xc8, 0x9b, 0x50, 0x49, 0x78, 0xc0, 0x64, 0x42, 0x83,
+	0xa8, 0x59, 0x54, 0xd5, 0x30, 0x16, 0x90, 0x0d, 0xa8, 0x46, 0x88, 0xc0, 0x95, 0x08, 0x41, 0x55,
+	0x7f, 0xf5, 0xb4, 0x90, 0xc6, 0x70, 0xcd, 0xba, 0x43, 0x94, 0x49, 0xee, 0x14, 0x9a, 0x56, 0xfb,
+	0x3f, 0x16, 0x34, 0x56, 0x68, 0xe8, 0xe7, 0xe2, 0x3a, 0x29, 0x9d, 0x37, 0xa1, 0x14, 0xe3, 0x4b,
+	0x75, 0x50, 0x6f, 0x99, 0xa0, 0x2e, 0x1c, 0x0d, 0xaa, 0x1b, 0x26, 0x8e, 0x52, 0x25, 0x6f, 0x43,
+	0x2d, 0x66, 0x52, 0x0c, 0xf6, 0x98, 0x8b, 0x31, 0x98, 0x78, 0xaa, 0x46, 0xf6, 0x90, 0x07, 0x0c,
+	0xeb, 0x28, 0x66, 0x1f, 0x0d, 0x99, 0x4c, 0xdc, 0xee, 0x9a, 0xd9, 0xce, 0x15, 0x23, 0xe9, 0xae,
+	0x1d, 0x0e, 0x78, 0xea, 0xb5, 0x03, 0xfe, 0xa5, 0x05, 0x0d, 0xa5, 0xb4, 0xce, 0x98, 0xaf, 0x03,
+	0x26, 0x50, 0xc2, 0xd3, 0xd1, 0x84, 0xab, 0x9e, 0xc9, 0x3c, 0x4c, 0x7d, 0x34, 0x14, 0x69, 0xb4,
+	0x8e, 0x1e, 0x60, 0x45, 0xe5, 0xd1, 0x14, 0xcf, 0x8e, 0x26, 0x8f, 0x83, 0x2c, 0x40, 0x39, 0x66,
+	0x03, 0x3a, 0x62, 0xb1, 0x6c, 0x96, 0x54, 0x99, 0x67, 0xe3, 0xf6, 0x3a, 0xd4, 0x36, 0x63, 0xb1,
+	0xc7, 0x7d, 0x16, 0xab, 0xe2, 0x5e, 0x80, 0x72, 0x64, 0xc6, 0x06, 0x60, 0x36, 0x3e, 0xe0, 0xa7,
+	0x70, 0xc8, 0xcf, 0x1f, 0x2c, 0xa8, 0xa7, 0x8e, 0xf4, 0x5b, 0x37, 0xa0, 0x9e, 0x5a, 0xba, 0x3c,
+	0xec, 0x0b, 0xe5, 0xae, 0x7a, 0xeb, 0xeb, 0xa7, 0xc1, 0x1f, 0x03, 0x71, 0x6a, 0x51, 0x1e, 0xd6,
+	0x8f, 0xe1, 0x42, 0xe6, 0x2c, 0x97, 0x12, 0x8d, 0xa3, 0x7a, 0xeb, 0xdd, 0x57, 0x3b, 0xcd, 0xe5,
+	0xe6, 0x7c, 0x74, 0x44, 0x26, 0xdb, 0x3b, 0x40, 0x8e, 0xaa, 0x9e, 0x58, 0x9c, 0x77, 0x60, 0x4a,
+	0xaf, 0x49, 0x61, 0x82, 0x35, 0xd1, 0x26, 0xed, 0xdb, 0x98, 0x29, 0x53, 0x11, 0x2a, 0xb8, 0x33,
+	0x17, 0x44, 0x7b, 0x23, 0x57, 0x4c, 0xea, 0x81, 0xdc, 0x86, 0x29, 0x95, 0x0f, 0x6d, 0x7c, 0xb6,
+	0xbd, 0xaf, 0x2d, 0xda, 0xbf, 0xb7, 0x80, 0xac, 0x0a, 0x1e, 0xe2, 0xfb, 0x72, 0x21, 0x13, 0x28,
+	0xed, 0xf2, 0x30, 0x3d, 0x64, 0xd4, 0xf3, 0xc1, 0x53, 0xa2, 0x70, 0xf8, 0x94, 0xb0, 0xa1, 0x88,
+	0x87, 0x72, 0x51, 0x19, 0xe0, 0x23, 0xa2, 0xdf, 0xa3, 0x83, 0x21, 0x33, 0x1b, 0x4c, 0x0f, 0xfe,
+	0xaf, 0x9b, 0xab, 0xfd, 0x67, 0x0b, 0x66, 0xb7, 0x12, 0x11, 0xe7, 0x8f, 0xc8, 0x03, 0x30, 0xad,
+	0xc3, 0x30, 0xc7, 0x6b, 0x59, 0x38, 0xb0, 0x96, 0xb7, 0x53, 0xb0, 0xc5, 0x09, 0x52, 0xf8, 0x25,
+	0x44, 0xf4, 0x3b, 0x0b, 0x20, 0x17, 0xcc, 0x17, 0x5f, 0x59, 0xf2, 0x7d, 0xb0, 0xbd, 0x61, 0x30,
+	0x1c, 0x50, 0xc4, 0xa0, 0xf7, 0xcb, 0x24, 0xbd, 0x61, 0x76, 0x6c, 0xac, 0x8b, 0xec, 0x48, 0x93,
+	0x28, 0xe6, 0xf2, 0xda, 0xfe, 0x4b, 0x01, 0x1a, 0x9b, 0x8a, 0x40, 0x64, 0xd8, 0x2f, 0xe1, 0x29,
+	0x82, 0x79, 0xc9, 0x9a, 0xd5, 0x8c, 0x1a, 0x77, 0x7d, 0x72, 0x17, 0x2a, 0x2c, 0xa0, 0x93, 0x83,
+	0x2a, 0xb3, 0x80, 0x6a, 0x34, 0xdf, 0x01, 0x7c, 0x46, 0x16, 0xd5, 0x9f, 0x64, 0xc9, 0x66, 0x58,
+	0x40, 0x57, 0x45, 0xd8, 0x27, 0xdf, 0x82, 0x92, 0xb2, 0x2d, 0x9d, 0xdd, 0x56, 0x19, 0x60, 0x7b,
+	0x51, 0x8c, 0x43, 0xee, 0xe8, 0xf6, 0x32, 0xa5, 0xdb, 0x8b, 0x91, 0xa9, 0xf6, 0x72, 0xa8, 0x20,
+	0xa6, 0x5f, 0xab, 0x20, 0x9e, 0x17, 0xa0, 0xb5, 0x7a, 0x0c, 0xd3, 0x3c, 0x0b, 0x29, 0xb8, 0x8b,
+	0xad, 0x30, 0x12, 0x71, 0x72, 0x20, 0xd3, 0xaf, 0xe8, 0xa2, 0x55, 0x6d, 0xa2, 0xd3, 0x7c, 0x03,
+	0xe6, 0xf7, 0xe8, 0x80, 0xfb, 0x6e, 0x3f, 0x16, 0x81, 0x7b, 0x98, 0x24, 0x10, 0x35, 0xb7, 0x1e,
+	0x8b, 0xe0, 0x61, 0xb6, 0xc1, 0xbe, 0x09, 0x17, 0x45, 0x4f, 0xb2, 0x78, 0x4f, 0x11, 0x48, 0x99,
+	0xb3, 0xd1, 0xc7, 0xc0, 0x85, 0xfc, 0xec, 0xc3, 0x93, 0x48, 0xc6, 0x6b, 0x6d, 0x22, 0xec, 0xef,
+	0x6c, 0x3f, 0xe2, 0x31, 0x93, 0x2e, 0x4d, 0xe9, 0x71, 0xc5, 0x48, 0xee, 0x25, 0xed, 0x67, 0x45,
+	0x98, 0x43, 0xfe, 0xa1, 0xb9, 0x97, 0xa3, 0xfb, 0x7e, 0x9e, 0x14, 0x98, 0x44, 0xe6, 0x48, 0x81,
+	0x8f, 0x74, 0xd1, 0x10, 0x3b, 0xe9, 0xc5, 0x3c, 0x52, 0x4a, 0x05, 0xb5, 0x0b, 0x1a, 0x5a, 0xbe,
+	0xa5, 0xc4, 0x5d, 0x9f, 0x34, 0x61, 0x46, 0x1f, 0x2a, 0x29, 0x9f, 0x4c, 0x87, 0xe4, 0x32, 0x54,
+	0xa8, 0xdc, 0x75, 0x3d, 0x31, 0x0c, 0xd3, 0x5b, 0x44, 0x99, 0xca, 0xdd, 0x55, 0x1c, 0xe3, 0x64,
+	0xc0, 0x43, 0x33, 0xa9, 0xab, 0xaa, 0x1c, 0xf0, 0x50, 0x4f, 0xee, 0x40, 0xa5, 0xcf, 0x58, 0xc6,
+	0xf7, 0xb1, 0xdd, 0x5d, 0xea, 0xe8, 0xf5, 0xeb, 0xe0, 0xd1, 0x9d, 0xe5, 0x05, 0xcf, 0xf2, 0x95,
+	0x1b, 0x98, 0x91, 0x5f, 0xff, 0x6d, 0x71, 0x69, 0x9b, 0x27, 0x3b, 0xc3, 0x5e, 0xc7, 0x13, 0xc1,
+	0xb2, 0xb9, 0x92, 0xe9, 0x7f, 0xd7, 0xa5, 0xbf, 0xbb, 0x8c, 0x04, 0x55, 0x2a, 0x03, 0xe9, 0x94,
+	0xfb, 0x8c, 0xe9, 0x9b, 0xc2, 0x22, 0x2e, 0x04, 0x8b, 0x68, 0xcc, 0xf0, 0x86, 0x61, 0xee, 0x06,
+	0x60, 0x44, 0x1f, 0x50, 0x89, 0x0a, 0x6c, 0x9f, 0x79, 0xc3, 0x44, 0x2b, 0x94, 0xb5, 0x82, 0x11,
+	0xa1, 0xc2, 0x12, 0xd8, 0x18, 0x88, 0x14, 0xc3, 0xd8, 0x63, 0x26, 0x9e, 0x8a, 0xd2, 0x6a, 0x04,
+	0x3c, 0xdc, 0x52, 0x62, 0x15, 0x95, 0xe2, 0x46, 0xcf, 0x0a, 0x50, 0xc7, 0xc5, 0xe8, 0xae, 0xac,
+	0x1a, 0x96, 0xbf, 0x04, 0x76, 0x8f, 0x86, 0xbe, 0xcb, 0x7b, 0x9e, 0xcb, 0x42, 0xda, 0x1b, 0x30,
+	0xbd, 0x1c, 0x65, 0xa7, 0x81, 0xf2, 0x6e, 0xcf, 0xbb, 0xaf, 0xa5, 0x58, 0x9d, 0xa8, 0x94, 0x2d,
+	0x5b, 0x98, 0x60, 0x65, 0x0d, 0xcc, 0xba, 0x10, 0xde, 0xf3, 0xcc, 0xe2, 0x76, 0xcd, 0x0c, 0x5e,
+	0x11, 0xd0, 0x22, 0xc5, 0xb6, 0x43, 0xc3, 0x90, 0x0d, 0x4c, 0xd3, 0xb2, 0x79, 0xcf, 0x33, 0xe8,
+	0xb4, 0x1c, 0x43, 0x45, 0xed, 0x3d, 0x16, 0x4b, 0x2e, 0x42, 0x7d, 0x56, 0x38, 0xc0, 0x7b, 0xde,
+	0x63, 0x2d, 0x21, 0x2d, 0xad, 0xa0, 0xb6, 0x18, 0xf7, 0xcd, 0x55, 0xae, 0xc2, 0x7b, 0xde, 0xa6,
+	0x88, 0xb1, 0x14, 0xae, 0xc1, 0xdc, 0x40, 0x9d, 0x1f, 0xae, 0xa9, 0x1d, 0xbc, 0x64, 0xe0, 0xf2,
+	0x15, 0x9d, 0x59, 0x3d, 0x61, 0xae, 0x14, 0xbe, 0x54, 0xc9, 0xf8, 0xc4, 0x82, 0xf9, 0x2d, 0x55,
+	0x2c, 0xaa, 0xbe, 0xc7, 0xdb, 0xe3, 0xdb, 0x30, 0xad, 0x3d, 0xa8, 0x4c, 0x9c, 0xf5, 0x46, 0x61,
+	0x6c, 0xb0, 0xb4, 0x74, 0x09, 0xa6, 0x45, 0x5b, 0x71, 0xca, 0x5a, 0xd0, 0xf5, 0x5f, 0x71, 0xae,
+	0x8f, 0xe0, 0xfc, 0x03, 0xbc, 0x80, 0x1d, 0x80, 0x23, 0x49, 0x0f, 0x2e, 0x0c, 0xd4, 0x7d, 0x50,
+	0xed, 0xd9, 0x4c, 0x5d, 0x36, 0x2d, 0x55, 0x9b, 0x9d, 0x53, 0x6e, 0x86, 0xc7, 0x84, 0xe7, 0x9c,
+	0x1f, 0x1c, 0x7d, 0x47, 0xfb, 0x4f, 0x16, 0xd2, 0x52, 0xee, 0x31, 0x87, 0x79, 0x22, 0xf6, 0xe5,
+	0x97, 0x99, 0x84, 0x1f, 0xc0, 0xfc, 0x00, 0x19, 0x60, 0x1a, 0x51, 0xac, 0x5f, 0xa9, 0x36, 0x70,
+	0xf5, 0xd6, 0xd5, 0x57, 0x9c, 0x43, 0x1a, 0xa0, 0x43, 0xb4, 0x8b, 0x3c, 0xe6, 0x76, 0x1f, 0xaa,
+	0xb9, 0xf1, 0x51, 0x72, 0x92, 0x4f, 0xf6, 0xb8, 0xdb, 0x17, 0x26, 0xe6, 0x71, 0xff, 0x2d, 0x02,
+	0xf9, 0x1e, 0x4b, 0xa8, 0xaf, 0x3a, 0x04, 0x4d, 0xb8, 0x4c, 0xb8, 0xa7, 0x36, 0xeb, 0x76, 0x2c,
+	0x86, 0x91, 0xd9, 0x86, 0xf8, 0xc6, 0xba, 0x03, 0x4a, 0xa4, 0x0f, 0x96, 0x0e, 0x9c, 0x37, 0xb1,
+	0xba, 0x92, 0xaa, 0xbb, 0xb3, 0xe4, 0x4f, 0x35, 0x80, 0xba, 0x33, 0x67, 0xa6, 0xb6, 0xd4, 0xcc,
+	0x16, 0x7f, 0xca, 0xb0, 0x6f, 0x06, 0x8c, 0x86, 0x93, 0xf4, 0x5c, 0x65, 0x80, 0x86, 0xc9, 0xc7,
+	0x34, 0x9a, 0xa8, 0xe1, 0xa2, 0x01, 0xf9, 0x06, 0xcc, 0xf6, 0x79, 0x2c, 0x93, 0x5c, 0x27, 0x99,
+	0xd2, 0xe7, 0xae, 0x12, 0x8f, 0xf7, 0xc8, 0x55, 0x68, 0xa8, 0x9a, 0x1c, 0xeb, 0x4d, 0x2b, 0xbd,
+	0x3a, 0x4a, 0xc7, 0x6a, 0x77, 0xf5, 0x39, 0xab, 0x13, 0x3d, 0x33, 0x01, 0xf7, 0x08, 0x78, 0xa8,
+	0x9b, 0x22, 0x7a, 0xa0, 0xfb, 0xc6, 0x43, 0x79, 0x12, 0x0f, 0x74, 0x5f, 0x7b, 0x58, 0x87, 0x5a,
+	0xc0, 0x7c, 0x4e, 0x53, 0x18, 0x95, 0xb3, 0x3b, 0xa9, 0x6a, 0x43, 0xe5, 0xa7, 0xfd, 0x0f, 0x0b,
+	0x6c, 0xf5, 0x74, 0x2f, 0xc1, 0xca, 0x53, 0x4d, 0xf5, 0x34, 0xde, 0x35, 0x9f, 0x2f, 0xb0, 0x62,
+	0xca, 0x14, 0x89, 0xe1, 0x42, 0xba, 0xa9, 0x6b, 0x9a, 0x43, 0xa0, 0xc4, 0xf6, 0x23, 0xa1, 0x96,
+	0x6b, 0xca, 0x51, 0xcf, 0xb8, 0x83, 0xc6, 0xac, 0x4d, 0xaf, 0xc1, 0x98, 0x90, 0x5d, 0xca, 0x11,
+	0x32, 0xdd, 0x71, 0x33, 0xae, 0x65, 0xa6, 0x94, 0xbf, 0x19, 0xe5, 0x0f, 0xa7, 0xee, 0xa3, 0xcb,
+	0xc3, 0x6c, 0xaa, 0xac, 0xbc, 0xe6, 0xd9, 0x54, 0xfb, 0x27, 0x50, 0xb9, 0x27, 0x25, 0x4b, 0x36,
+	0x29, 0x8f, 0xd1, 0x15, 0xc5, 0x41, 0x2e, 0x36, 0x35, 0xee, 0xfa, 0xe4, 0x11, 0xd4, 0x25, 0xdf,
+	0x0e, 0x99, 0xaf, 0x01, 0xa6, 0xb7, 0xc2, 0x1b, 0xa7, 0x1c, 0x45, 0x4a, 0x5d, 0xc1, 0xff, 0xb0,
+	0x9f, 0xbd, 0xc3, 0xa9, 0xc9, 0xb1, 0x5c, 0xb6, 0x7f, 0x6b, 0xc1, 0xc5, 0xe3, 0x15, 0xd5, 0x87,
+	0x4a, 0x0d, 0x94, 0xc5, 0xd9, 0x17, 0xa9, 0x8a, 0x53, 0xcb, 0x84, 0x1b, 0x6c, 0xf4, 0x8a, 0x5b,
+	0x53, 0xb6, 0xe3, 0x8b, 0x13, 0xf3, 0xfb, 0x37, 0xa1, 0x82, 0x40, 0x69, 0x32, 0x8c, 0xf5, 0x15,
+	0xab, 0xe6, 0x8c, 0x05, 0x08, 0x7b, 0x36, 0xa3, 0x8d, 0x8e, 0x62, 0x74, 0x87, 0x79, 0x62, 0x2d,
+	0xe3, 0x89, 0x8b, 0x50, 0xed, 0x0f, 0x07, 0x03, 0x57, 0x33, 0x3f, 0x85, 0xb2, 0xe6, 0x00, 0x8a,
+	0x8c, 0xe5, 0x57, 0x45, 0x03, 0xdb, 0x3f, 0xb7, 0x60, 0x4e, 0x5f, 0x23, 0xc4, 0xc9, 0x04, 0xb7,
+	0x9e, 0x01, 0x3f, 0x3d, 0xb9, 0x1b, 0x5f, 0xf8, 0xcb, 0xc9, 0x31, 0x3c, 0xfc, 0x17, 0x16, 0x90,
+	0xec, 0x73, 0xe4, 0x19, 0xb8, 0xf7, 0x57, 0x07, 0xed, 0xda, 0xbf, 0xad, 0xf4, 0xd3, 0x24, 0x36,
+	0x3c, 0x32, 0x0b, 0xd5, 0x47, 0xa1, 0x8c, 0x98, 0xc7, 0xfb, 0x9c, 0xf9, 0xf6, 0x39, 0x52, 0x83,
+	0x12, 0x32, 0x2c, 0xdb, 0x5a, 0x28, 0x94, 0x2d, 0x52, 0x87, 0x4a, 0xf6, 0xf9, 0xc0, 0x2e, 0x90,
+	0x1a, 0x94, 0xd3, 0xfb, 0xbf, 0x5d, 0x24, 0x73, 0x50, 0xc9, 0xaa, 0xc6, 0x2e, 0x29, 0xfd, 0x0a,
+	0x4c, 0x39, 0xf4, 0xa9, 0x88, 0xed, 0x29, 0x32, 0x03, 0xc5, 0x35, 0x4e, 0xed, 0x69, 0x52, 0x86,
+	0xd2, 0xbd, 0xcd, 0xee, 0x7b, 0xf6, 0x0c, 0x8a, 0x1e, 0x05, 0xd4, 0x2e, 0xa3, 0x08, 0x17, 0xce,
+	0xae, 0x90, 0x59, 0x98, 0x31, 0x84, 0xce, 0x06, 0xe5, 0xa1, 0x06, 0xe5, 0xf4, 0xab, 0x8a, 0x5d,
+	0x45, 0x7f, 0xea, 0xca, 0x6e, 0xd7, 0x48, 0x13, 0xe6, 0x8f, 0xbb, 0xda, 0xd8, 0x75, 0x52, 0x85,
+	0x19, 0x53, 0x06, 0x76, 0x03, 0xed, 0xd3, 0xcc, 0xdb, 0xb3, 0x2b, 0x4f, 0x3e, 0x7d, 0xd1, 0xb2,
+	0x9e, 0xbf, 0x68, 0x59, 0x7f, 0x7f, 0xd1, 0xb2, 0x7e, 0xf6, 0xb2, 0x75, 0xee, 0x8f, 0x2f, 0x5b,
+	0xd6, 0xf3, 0x97, 0xad, 0x73, 0x7f, 0x7d, 0xd9, 0x3a, 0xf7, 0xa3, 0x07, 0x39, 0xca, 0xdb, 0x4d,
+	0xb3, 0xf9, 0x80, 0xf6, 0xe4, 0x72, 0x96, 0xdb, 0xeb, 0x9e, 0x88, 0x59, 0x7e, 0x88, 0x10, 0x96,
+	0x03, 0xe1, 0x0f, 0x07, 0x4c, 0xa6, 0xbf, 0x83, 0x28, 0x72, 0xdc, 0x9b, 0x56, 0x3f, 0x4e, 0xbc,
+	0xf7, 0xbf, 0x00, 0x00, 0x00, 0xff, 0xff, 0xc5, 0x6c, 0xc4, 0x5b, 0x28, 0x19, 0x00, 0x00,
 }
 
 func (this *Params) Equal(that interface{}) bool {
@@ -1805,6 +2275,64 @@ func (this *Params) Equal(that interface{}) bool {
 	if this.PythContract != that1.PythContract {
 		return false
 	}
+	if this.ChainlinkVerifierProxyContract != that1.ChainlinkVerifierProxyContract {
+		return false
+	}
+	if this.ChainlinkDataStreamsVerificationGasLimit != that1.ChainlinkDataStreamsVerificationGasLimit {
+		return false
+	}
+	if this.PythProVerifierContract != that1.PythProVerifierContract {
+		return false
+	}
+	if this.PythProVerificationGasLimit != that1.PythProVerificationGasLimit {
+		return false
+	}
+	if this.PythProVerificationFee != that1.PythProVerificationFee {
+		return false
+	}
+	if !this.SedaFastParams.Equal(&that1.SedaFastParams) {
+		return false
+	}
+	return true
+}
+func (this *SedaFastParams) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*SedaFastParams)
+	if !ok {
+		that2, ok := that.(SedaFastParams)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if !bytes.Equal(this.PublicKey, that1.PublicKey) {
+		return false
+	}
+	if len(this.SimpleProgramIds) != len(that1.SimpleProgramIds) {
+		return false
+	}
+	for i := range this.SimpleProgramIds {
+		if this.SimpleProgramIds[i] != that1.SimpleProgramIds[i] {
+			return false
+		}
+	}
+	if len(this.JsonProgramIds) != len(that1.JsonProgramIds) {
+		return false
+	}
+	for i := range this.JsonProgramIds {
+		if this.JsonProgramIds[i] != that1.JsonProgramIds[i] {
+			return false
+		}
+	}
 	return true
 }
 func (m *Params) Marshal() (dAtA []byte, err error) {
@@ -1827,10 +2355,97 @@ func (m *Params) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	{
+		size, err := m.SedaFastParams.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintOracle(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x42
+	if m.PythProVerificationFee != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.PythProVerificationFee))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.PythProVerificationGasLimit != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.PythProVerificationGasLimit))
+		i--
+		dAtA[i] = 0x30
+	}
+	if len(m.PythProVerifierContract) > 0 {
+		i -= len(m.PythProVerifierContract)
+		copy(dAtA[i:], m.PythProVerifierContract)
+		i = encodeVarintOracle(dAtA, i, uint64(len(m.PythProVerifierContract)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.ChainlinkDataStreamsVerificationGasLimit != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.ChainlinkDataStreamsVerificationGasLimit))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.ChainlinkVerifierProxyContract) > 0 {
+		i -= len(m.ChainlinkVerifierProxyContract)
+		copy(dAtA[i:], m.ChainlinkVerifierProxyContract)
+		i = encodeVarintOracle(dAtA, i, uint64(len(m.ChainlinkVerifierProxyContract)))
+		i--
+		dAtA[i] = 0x12
+	}
 	if len(m.PythContract) > 0 {
 		i -= len(m.PythContract)
 		copy(dAtA[i:], m.PythContract)
 		i = encodeVarintOracle(dAtA, i, uint64(len(m.PythContract)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SedaFastParams) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SedaFastParams) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SedaFastParams) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.JsonProgramIds) > 0 {
+		for iNdEx := len(m.JsonProgramIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.JsonProgramIds[iNdEx])
+			copy(dAtA[i:], m.JsonProgramIds[iNdEx])
+			i = encodeVarintOracle(dAtA, i, uint64(len(m.JsonProgramIds[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.SimpleProgramIds) > 0 {
+		for iNdEx := len(m.SimpleProgramIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.SimpleProgramIds[iNdEx])
+			copy(dAtA[i:], m.SimpleProgramIds[iNdEx])
+			i = encodeVarintOracle(dAtA, i, uint64(len(m.SimpleProgramIds[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.PublicKey) > 0 {
+		i -= len(m.PublicKey)
+		copy(dAtA[i:], m.PublicKey)
+		i = encodeVarintOracle(dAtA, i, uint64(len(m.PublicKey)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -2480,6 +3095,71 @@ func (m *PythPriceState) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *ChainlinkDataStreamsPriceState) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ChainlinkDataStreamsPriceState) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ChainlinkDataStreamsPriceState) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.ExpiresAt != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.ExpiresAt))
+		i--
+		dAtA[i] = 0x30
+	}
+	{
+		size, err := m.PriceState.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintOracle(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x2a
+	if m.ObservationsTimestamp != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.ObservationsTimestamp))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.ValidFromTimestamp != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.ValidFromTimestamp))
+		i--
+		dAtA[i] = 0x18
+	}
+	{
+		size := m.ReportPrice.Size()
+		i -= size
+		if _, err := m.ReportPrice.MarshalTo(dAtA[i:]); err != nil {
+			return 0, err
+		}
+		i = encodeVarintOracle(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if len(m.FeedId) > 0 {
+		i -= len(m.FeedId)
+		copy(dAtA[i:], m.FeedId)
+		i = encodeVarintOracle(dAtA, i, uint64(len(m.FeedId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *BandOracleRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2582,21 +3262,21 @@ func (m *BandIBCParams) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.LegacyOracleIds) > 0 {
-		dAtA10 := make([]byte, len(m.LegacyOracleIds)*10)
-		var j9 int
+		dAtA12 := make([]byte, len(m.LegacyOracleIds)*10)
+		var j11 int
 		for _, num1 := range m.LegacyOracleIds {
 			num := uint64(num1)
 			for num >= 1<<7 {
-				dAtA10[j9] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA12[j11] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j9++
+				j11++
 			}
-			dAtA10[j9] = uint8(num)
-			j9++
+			dAtA12[j11] = uint8(num)
+			j11++
 		}
-		i -= j9
-		copy(dAtA[i:], dAtA10[:j9])
-		i = encodeVarintOracle(dAtA, i, uint64(j9))
+		i -= j11
+		copy(dAtA[i:], dAtA12[:j11])
+		i = encodeVarintOracle(dAtA, i, uint64(j11))
 		i--
 		dAtA[i] = 0x32
 	}
@@ -3057,6 +3737,141 @@ func (m *SignedPriceOfAssetPair) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	return len(dAtA) - i, nil
 }
 
+func (m *ChainlinkReport) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ChainlinkReport) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ChainlinkReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.ObservationsTimestamp != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.ObservationsTimestamp))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.ValidFromTimestamp != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.ValidFromTimestamp))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.FullReport) > 0 {
+		i -= len(m.FullReport)
+		copy(dAtA[i:], m.FullReport)
+		i = encodeVarintOracle(dAtA, i, uint64(len(m.FullReport)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.FeedId) > 0 {
+		i -= len(m.FeedId)
+		copy(dAtA[i:], m.FeedId)
+		i = encodeVarintOracle(dAtA, i, uint64(len(m.FeedId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PythProPriceState) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PythProPriceState) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PythProPriceState) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	{
+		size, err := m.PriceState.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintOracle(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	if m.Timestamp != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.Timestamp))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.FeedId != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.FeedId))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SedaFastPriceState) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SedaFastPriceState) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SedaFastPriceState) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	{
+		size, err := m.PriceState.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintOracle(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	if m.Timestamp != 0 {
+		i = encodeVarintOracle(dAtA, i, uint64(m.Timestamp))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.FeedId) > 0 {
+		i -= len(m.FeedId)
+		copy(dAtA[i:], m.FeedId)
+		i = encodeVarintOracle(dAtA, i, uint64(len(m.FeedId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintOracle(dAtA []byte, offset int, v uint64) int {
 	offset -= sovOracle(v)
 	base := offset
@@ -3077,6 +3892,50 @@ func (m *Params) Size() (n int) {
 	l = len(m.PythContract)
 	if l > 0 {
 		n += 1 + l + sovOracle(uint64(l))
+	}
+	l = len(m.ChainlinkVerifierProxyContract)
+	if l > 0 {
+		n += 1 + l + sovOracle(uint64(l))
+	}
+	if m.ChainlinkDataStreamsVerificationGasLimit != 0 {
+		n += 1 + sovOracle(uint64(m.ChainlinkDataStreamsVerificationGasLimit))
+	}
+	l = len(m.PythProVerifierContract)
+	if l > 0 {
+		n += 1 + l + sovOracle(uint64(l))
+	}
+	if m.PythProVerificationGasLimit != 0 {
+		n += 1 + sovOracle(uint64(m.PythProVerificationGasLimit))
+	}
+	if m.PythProVerificationFee != 0 {
+		n += 1 + sovOracle(uint64(m.PythProVerificationFee))
+	}
+	l = m.SedaFastParams.Size()
+	n += 1 + l + sovOracle(uint64(l))
+	return n
+}
+
+func (m *SedaFastParams) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.PublicKey)
+	if l > 0 {
+		n += 1 + l + sovOracle(uint64(l))
+	}
+	if len(m.SimpleProgramIds) > 0 {
+		for _, s := range m.SimpleProgramIds {
+			l = len(s)
+			n += 1 + l + sovOracle(uint64(l))
+		}
+	}
+	if len(m.JsonProgramIds) > 0 {
+		for _, s := range m.JsonProgramIds {
+			l = len(s)
+			n += 1 + l + sovOracle(uint64(l))
+		}
 	}
 	return n
 }
@@ -3335,6 +4194,32 @@ func (m *PythPriceState) Size() (n int) {
 	return n
 }
 
+func (m *ChainlinkDataStreamsPriceState) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.FeedId)
+	if l > 0 {
+		n += 1 + l + sovOracle(uint64(l))
+	}
+	l = m.ReportPrice.Size()
+	n += 1 + l + sovOracle(uint64(l))
+	if m.ValidFromTimestamp != 0 {
+		n += 1 + sovOracle(uint64(m.ValidFromTimestamp))
+	}
+	if m.ObservationsTimestamp != 0 {
+		n += 1 + sovOracle(uint64(m.ObservationsTimestamp))
+	}
+	l = m.PriceState.Size()
+	n += 1 + l + sovOracle(uint64(l))
+	if m.ExpiresAt != 0 {
+		n += 1 + sovOracle(uint64(m.ExpiresAt))
+	}
+	return n
+}
+
 func (m *BandOracleRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3587,6 +4472,64 @@ func (m *SignedPriceOfAssetPair) Size() (n int) {
 	return n
 }
 
+func (m *ChainlinkReport) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.FeedId)
+	if l > 0 {
+		n += 1 + l + sovOracle(uint64(l))
+	}
+	l = len(m.FullReport)
+	if l > 0 {
+		n += 1 + l + sovOracle(uint64(l))
+	}
+	if m.ValidFromTimestamp != 0 {
+		n += 1 + sovOracle(uint64(m.ValidFromTimestamp))
+	}
+	if m.ObservationsTimestamp != 0 {
+		n += 1 + sovOracle(uint64(m.ObservationsTimestamp))
+	}
+	return n
+}
+
+func (m *PythProPriceState) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.FeedId != 0 {
+		n += 1 + sovOracle(uint64(m.FeedId))
+	}
+	if m.Timestamp != 0 {
+		n += 1 + sovOracle(uint64(m.Timestamp))
+	}
+	l = m.PriceState.Size()
+	n += 1 + l + sovOracle(uint64(l))
+	return n
+}
+
+func (m *SedaFastPriceState) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.FeedId)
+	if l > 0 {
+		n += 1 + l + sovOracle(uint64(l))
+	}
+	if m.Timestamp != 0 {
+		n += 1 + sovOracle(uint64(m.Timestamp))
+	}
+	l = m.PriceState.Size()
+	n += 1 + l + sovOracle(uint64(l))
+	return n
+}
+
 func sovOracle(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
@@ -3653,6 +4596,308 @@ func (m *Params) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.PythContract = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChainlinkVerifierProxyContract", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ChainlinkVerifierProxyContract = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChainlinkDataStreamsVerificationGasLimit", wireType)
+			}
+			m.ChainlinkDataStreamsVerificationGasLimit = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ChainlinkDataStreamsVerificationGasLimit |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PythProVerifierContract", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PythProVerifierContract = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PythProVerificationGasLimit", wireType)
+			}
+			m.PythProVerificationGasLimit = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PythProVerificationGasLimit |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PythProVerificationFee", wireType)
+			}
+			m.PythProVerificationFee = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PythProVerificationFee |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SedaFastParams", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SedaFastParams.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOracle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SedaFastParams) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOracle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SedaFastParams: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SedaFastParams: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PublicKey = append(m.PublicKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.PublicKey == nil {
+				m.PublicKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SimpleProgramIds", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SimpleProgramIds = append(m.SimpleProgramIds, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JsonProgramIds", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JsonProgramIds = append(m.JsonProgramIds, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -5589,6 +6834,212 @@ func (m *PythPriceState) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *ChainlinkDataStreamsPriceState) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOracle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ChainlinkDataStreamsPriceState: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ChainlinkDataStreamsPriceState: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FeedId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FeedId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ReportPrice", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.ReportPrice.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidFromTimestamp", wireType)
+			}
+			m.ValidFromTimestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ValidFromTimestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ObservationsTimestamp", wireType)
+			}
+			m.ObservationsTimestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ObservationsTimestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PriceState", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.PriceState.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpiresAt", wireType)
+			}
+			m.ExpiresAt = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ExpiresAt |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOracle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *BandOracleRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7314,6 +8765,417 @@ func (m *SignedPriceOfAssetPair) Unmarshal(dAtA []byte) error {
 			m.Signature = append(m.Signature[:0], dAtA[iNdEx:postIndex]...)
 			if m.Signature == nil {
 				m.Signature = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOracle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ChainlinkReport) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOracle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ChainlinkReport: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ChainlinkReport: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FeedId", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FeedId = append(m.FeedId[:0], dAtA[iNdEx:postIndex]...)
+			if m.FeedId == nil {
+				m.FeedId = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FullReport", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FullReport = append(m.FullReport[:0], dAtA[iNdEx:postIndex]...)
+			if m.FullReport == nil {
+				m.FullReport = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidFromTimestamp", wireType)
+			}
+			m.ValidFromTimestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ValidFromTimestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ObservationsTimestamp", wireType)
+			}
+			m.ObservationsTimestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ObservationsTimestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOracle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PythProPriceState) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOracle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PythProPriceState: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PythProPriceState: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FeedId", wireType)
+			}
+			m.FeedId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.FeedId |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			m.Timestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Timestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PriceState", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.PriceState.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipOracle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SedaFastPriceState) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowOracle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SedaFastPriceState: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SedaFastPriceState: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FeedId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FeedId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			m.Timestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Timestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PriceState", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowOracle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthOracle
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthOracle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.PriceState.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
 			}
 			iNdEx = postIndex
 		default:

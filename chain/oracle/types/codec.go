@@ -16,52 +16,64 @@ import (
 // on the provided LegacyAmino codec. These types are used for Amino JSON serialization.
 func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&MsgRelayPriceFeedPrice{}, "oracle/MsgRelayPriceFeedPrice", nil)
-	cdc.RegisterConcrete(&MsgRelayBandRates{}, "oracle/MsgRelayBandRates", nil)
 	cdc.RegisterConcrete(&MsgRelayCoinbaseMessages{}, "oracle/MsgRelayCoinbaseMessages", nil)
-	cdc.RegisterConcrete(&MsgRequestBandIBCRates{}, "oracle/MsgRequestBandIBCRates", nil)
 	cdc.RegisterConcrete(&MsgRelayProviderPrices{}, "oracle/MsgRelayProviderPrices", nil)
 	cdc.RegisterConcrete(&MsgRelayPythPrices{}, "oracle/MsgRelayPythPrices", nil)
 	cdc.RegisterConcrete(&MsgRelayStorkPrices{}, "oracle/MsgRelayStorkPrices", nil)
+	cdc.RegisterConcrete(&MsgRelayChainlinkPrices{}, "oracle/MsgRelayChainlinkPrices", nil)
+	cdc.RegisterConcrete(&MsgRelayPythProPrices{}, "oracle/MsgRelayPythProPrices", nil)
+	cdc.RegisterConcrete(&MsgRelaySedaFastPrices{}, "oracle/MsgRelaySedaFastPrices", nil)
 	cdc.RegisterConcrete(&MsgUpdateParams{}, "oracle/MsgUpdateParams", nil)
 
-	cdc.RegisterConcrete(&GrantBandOraclePrivilegeProposal{}, "oracle/GrantBandOraclePrivilegeProposal", nil)
-	cdc.RegisterConcrete(&RevokeBandOraclePrivilegeProposal{}, "oracle/RevokeBandOraclePrivilegeProposal", nil)
+	// Deprecated: Band oracle tx types kept for backward compatibility
+	cdc.RegisterConcrete(&MsgRelayBandRates{}, "oracle/MsgRelayBandRates", nil)           //nolint:staticcheck // deprecated
+	cdc.RegisterConcrete(&MsgRequestBandIBCRates{}, "oracle/MsgRequestBandIBCRates", nil) //nolint:staticcheck // deprecated
+
 	cdc.RegisterConcrete(&GrantPriceFeederPrivilegeProposal{}, "oracle/GrantPriceFeederPrivilegeProposal", nil)
 	cdc.RegisterConcrete(&RevokePriceFeederPrivilegeProposal{}, "oracle/RevokePriceFeederPrivilegeProposal", nil)
-	cdc.RegisterConcrete(&AuthorizeBandOracleRequestProposal{}, "oracle/AuthorizeBandOracleRequestProposal", nil)
-	cdc.RegisterConcrete(&UpdateBandOracleRequestProposal{}, "oracle/UpdateBandOracleRequestProposal", nil)
-	cdc.RegisterConcrete(&EnableBandIBCProposal{}, "oracle/EnableBandIBCProposal", nil)
 	cdc.RegisterConcrete(&GrantProviderPrivilegeProposal{}, "oracle/GrantProviderPrivilegeProposal", nil)
 	cdc.RegisterConcrete(&RevokeProviderPrivilegeProposal{}, "oracle/RevokeProviderPrivilegeProposal", nil)
 	cdc.RegisterConcrete(&GrantStorkPublisherPrivilegeProposal{}, "oracle/GrantStorkPublisherPrivilegeProposal", nil)
 	cdc.RegisterConcrete(&RevokeStorkPublisherPrivilegeProposal{}, "oracle/RevokeStorkPublisherPrivilegeProposal", nil)
 	cdc.RegisterConcrete(&Params{}, "oracle/Params", nil)
+
+	// Deprecated: Band oracle proposal types kept for backward compatibility
+	cdc.RegisterConcrete(&GrantBandOraclePrivilegeProposal{}, "oracle/GrantBandOraclePrivilegeProposal", nil)     //nolint:staticcheck // deprecated
+	cdc.RegisterConcrete(&RevokeBandOraclePrivilegeProposal{}, "oracle/RevokeBandOraclePrivilegeProposal", nil)   //nolint:staticcheck // deprecated
+	cdc.RegisterConcrete(&AuthorizeBandOracleRequestProposal{}, "oracle/AuthorizeBandOracleRequestProposal", nil) //nolint:staticcheck // deprecated
+	cdc.RegisterConcrete(&UpdateBandOracleRequestProposal{}, "oracle/UpdateBandOracleRequestProposal", nil)       //nolint:staticcheck // deprecated
+	cdc.RegisterConcrete(&EnableBandIBCProposal{}, "oracle/EnableBandIBCProposal", nil)                           //nolint:staticcheck // deprecated
 }
 
 func RegisterInterfaces(registry types.InterfaceRegistry) {
 	registry.RegisterImplementations((*sdk.Msg)(nil),
 		&MsgRelayPriceFeedPrice{},
-		&MsgRelayBandRates{},
 		&MsgRelayCoinbaseMessages{},
-		&MsgRequestBandIBCRates{},
 		&MsgRelayProviderPrices{},
 		&MsgRelayPythPrices{},
 		&MsgRelayStorkPrices{},
+		&MsgRelayChainlinkPrices{},
+		&MsgRelayPythProPrices{},
+		&MsgRelaySedaFastPrices{},
 		&MsgUpdateParams{},
+		// Deprecated: Band oracle tx types kept for backward compatibility
+		&MsgRelayBandRates{},      //nolint:staticcheck // deprecated
+		&MsgRequestBandIBCRates{}, //nolint:staticcheck // deprecated
 	)
 
 	registry.RegisterImplementations((*govtypes.Content)(nil),
-		&GrantBandOraclePrivilegeProposal{},
-		&RevokeBandOraclePrivilegeProposal{},
 		&GrantPriceFeederPrivilegeProposal{},
 		&RevokePriceFeederPrivilegeProposal{},
-		&AuthorizeBandOracleRequestProposal{},
-		&UpdateBandOracleRequestProposal{},
-		&EnableBandIBCProposal{},
 		&GrantProviderPrivilegeProposal{},
 		&RevokeProviderPrivilegeProposal{},
 		&GrantStorkPublisherPrivilegeProposal{},
 		&RevokeStorkPublisherPrivilegeProposal{},
+		// Deprecated: Band oracle proposal types kept for backward compatibility
+		&GrantBandOraclePrivilegeProposal{},   //nolint:staticcheck // deprecated
+		&RevokeBandOraclePrivilegeProposal{},  //nolint:staticcheck // deprecated
+		&AuthorizeBandOracleRequestProposal{}, //nolint:staticcheck // deprecated
+		&UpdateBandOracleRequestProposal{},    //nolint:staticcheck // deprecated
+		&EnableBandIBCProposal{},              //nolint:staticcheck // deprecated
 	)
 
 	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)

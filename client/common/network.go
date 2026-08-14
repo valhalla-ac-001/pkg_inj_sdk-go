@@ -7,18 +7,18 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
-
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
-	MainnetTokensListURL = "https://github.com/InjectiveLabs/injective-lists/raw/master/tokens/mainnet.json" // nolint:gosec // not credentials, just the link to the public tokens list
-	TestnetTokensListURL = "https://github.com/InjectiveLabs/injective-lists/raw/master/tokens/testnet.json" // nolint:gosec // not credentials, just the link to the public tokens list
-	DevnetTokensListURL  = "https://github.com/InjectiveLabs/injective-lists/raw/master/tokens/devnet.json"  // nolint:gosec // not credentials, just the link to the public tokens list
+	// nolint:gosec // not credentials, just the link to the public tokens list
+	MainnetTokensListURL = "https://github.com/InjectiveLabs/injective-lists/raw/master/json/tokens/mainnet.json"
+	// nolint:gosec // not credentials, just the link to the public tokens list
+	TestnetTokensListURL = "https://github.com/InjectiveLabs/injective-lists/raw/master/json/tokens/testnet.json"
+	// nolint:gosec // not credentials, just the link to the public tokens list
+	DevnetTokensListURL = "https://github.com/InjectiveLabs/injective-lists/raw/master/json/tokens/devnet.json"
 )
 
 func cookieByName(cookies []*http.Cookie, key string) *http.Cookie {
@@ -29,162 +29,6 @@ func cookieByName(cookies []*http.Cookie, key string) *http.Cookie {
 	}
 	return nil
 }
-
-type MetadataProvider struct {
-	f func() metadata.MD
-}
-
-func NewMetadataProvider(f func() metadata.MD) MetadataProvider {
-	return MetadataProvider{f: f}
-}
-
-func (provider *MetadataProvider) metadata() metadata.MD {
-	return provider.f()
-}
-
-type CookieAssistant interface {
-	Metadata(provider MetadataProvider) (string, error)
-	RealMetadata() metadata.MD
-	ProcessResponseMetadata(header metadata.MD)
-}
-
-type ExpiringCookieAssistant struct {
-	expirationKey string
-	timeLayout    string
-	cookie        string
-}
-
-func (assistant *ExpiringCookieAssistant) initializeCookie(provider MetadataProvider) error {
-	md := provider.metadata()
-	cookieInfo := md.Get("set-cookie")
-
-	if len(cookieInfo) == 0 {
-		return fmt.Errorf("error getting a new cookie from the server")
-	}
-
-	assistant.cookie = cookieInfo[0]
-	return nil
-}
-
-func (assistant *ExpiringCookieAssistant) checkCookieExpiration() {
-	// borrow http request to parse cookie
-	header := http.Header{}
-	header.Add("Cookie", assistant.cookie)
-	request := http.Request{Header: header}
-	cookies := request.Cookies()
-	cookie := cookieByName(cookies, assistant.expirationKey)
-
-	if cookie != nil {
-		expirationTime, err := time.Parse(assistant.timeLayout, cookie.Value)
-
-		if err == nil {
-			timestampDiff := time.Until(expirationTime)
-			if timestampDiff < 0 {
-				assistant.cookie = ""
-			}
-		}
-	}
-}
-
-func (assistant *ExpiringCookieAssistant) Metadata(provider MetadataProvider) (string, error) {
-	if assistant.cookie == "" {
-		err := assistant.initializeCookie(provider)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	cookie := assistant.cookie
-	assistant.checkCookieExpiration()
-
-	return cookie, nil
-}
-
-func (assistant *ExpiringCookieAssistant) RealMetadata() metadata.MD {
-	newMetadata := metadata.Pairs()
-	assistant.checkCookieExpiration()
-	if assistant.cookie != "" {
-		newMetadata.Append("cookie", assistant.cookie)
-	}
-	return newMetadata
-}
-
-func (assistant *ExpiringCookieAssistant) ProcessResponseMetadata(header metadata.MD) {
-	cookieInfo := header.Get("set-cookie")
-	if len(cookieInfo) > 0 {
-		assistant.cookie = cookieInfo[0]
-	}
-}
-
-func TestnetKubernetesCookieAssistant() ExpiringCookieAssistant {
-	assistant := ExpiringCookieAssistant{}
-	assistant.expirationKey = "Expires"
-	assistant.timeLayout = "Mon, 02-Jan-06 15:04:05 MST"
-
-	return assistant
-}
-
-func MainnetKubernetesCookieAssistant() ExpiringCookieAssistant {
-	assistant := ExpiringCookieAssistant{}
-	assistant.expirationKey = "expires"
-	assistant.timeLayout = "Mon, 02-Jan-2006 15:04:05 MST"
-
-	return assistant
-}
-
-type BareMetalLoadBalancedCookieAssistant struct {
-	cookie string
-}
-
-func (assistant *BareMetalLoadBalancedCookieAssistant) initializeCookie(provider MetadataProvider) error {
-	md := provider.metadata()
-	cookieInfo := md.Get("set-cookie")
-
-	if len(cookieInfo) == 0 {
-		return fmt.Errorf("error getting a new cookie from the server")
-	}
-
-	assistant.cookie = cookieInfo[0]
-	return nil
-}
-
-func (assistant *BareMetalLoadBalancedCookieAssistant) Metadata(provider MetadataProvider) (string, error) {
-	if assistant.cookie == "" {
-		err := assistant.initializeCookie(provider)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return assistant.cookie, nil
-}
-
-func (assistant *BareMetalLoadBalancedCookieAssistant) RealMetadata() metadata.MD {
-	newMetadata := metadata.Pairs()
-	if assistant.cookie != "" {
-		newMetadata.Append("cookie", assistant.cookie)
-	}
-	return newMetadata
-}
-
-func (assistant *BareMetalLoadBalancedCookieAssistant) ProcessResponseMetadata(header metadata.MD) {
-	cookieInfo := header.Get("set-cookie")
-	if len(cookieInfo) > 0 {
-		assistant.cookie = cookieInfo[0]
-	}
-}
-
-type DisabledCookieAssistant struct{}
-
-func (assistant *DisabledCookieAssistant) Metadata(provider MetadataProvider) (string, error) {
-	return "", nil
-}
-
-func (assistant *DisabledCookieAssistant) RealMetadata() metadata.MD {
-	return metadata.Pairs()
-}
-
-func (assistant *DisabledCookieAssistant) ProcessResponseMetadata(header metadata.MD) {}
 
 type Network struct {
 	LcdEndpoint             string
@@ -205,17 +49,18 @@ type Network struct {
 	OfficialTokensListURL   string
 }
 
+// nolint:cyclomatic // we leave the function as it is for clarity
+// revive:disable:function-length // we leave the function as it is for clarity
 func LoadNetwork(name, node string) Network {
 	switch name {
-
 	case "local":
 		return Network{
 			LcdEndpoint:             "http://localhost:10337",
 			TmEndpoint:              "http://localhost:26657",
-			ChainGrpcEndpoint:       "tcp://localhost:9900",
-			ChainStreamGrpcEndpoint: "tcp://localhost:9999",
-			ExchangeGrpcEndpoint:    "tcp://localhost:9910",
-			ExplorerGrpcEndpoint:    "tcp://localhost:9911",
+			ChainGrpcEndpoint:       "localhost:9900",
+			ChainStreamGrpcEndpoint: "localhost:9999",
+			ExchangeGrpcEndpoint:    "localhost:9910",
+			ExplorerGrpcEndpoint:    "localhost:9911",
 			ChainId:                 "injective-1",
 			FeeDenom:                "inj",
 			Name:                    "local",
@@ -224,15 +69,14 @@ func LoadNetwork(name, node string) Network {
 			ExplorerCookieAssistant: &DisabledCookieAssistant{},
 			OfficialTokensListURL:   MainnetTokensListURL,
 		}
-
 	case "devnet-1":
 		return Network{
 			LcdEndpoint:             "https://devnet-1.lcd.injective.dev",
 			TmEndpoint:              "https://devnet-1.tm.injective.dev:443",
-			ChainGrpcEndpoint:       "tcp://devnet-1.grpc.injective.dev:9900",
-			ChainStreamGrpcEndpoint: "tcp://devnet-1.grpc.injective.dev:9999",
-			ExchangeGrpcEndpoint:    "tcp://devnet-1.api.injective.dev:9910",
-			ExplorerGrpcEndpoint:    "tcp://devnet-1.api.injective.dev:9911",
+			ChainGrpcEndpoint:       "devnet-1.grpc.injective.dev:9900",
+			ChainStreamGrpcEndpoint: "devnet-1.grpc.injective.dev:9999",
+			ExchangeGrpcEndpoint:    "devnet-1.api.injective.dev:9910",
+			ExplorerGrpcEndpoint:    "devnet-1.api.injective.dev:9911",
 			ChainId:                 "injective-777",
 			FeeDenom:                "inj",
 			Name:                    "devnet-1",
@@ -245,10 +89,10 @@ func LoadNetwork(name, node string) Network {
 		return Network{
 			LcdEndpoint:             "https://devnet.lcd.injective.dev",
 			TmEndpoint:              "https://devnet.tm.injective.dev:443",
-			ChainGrpcEndpoint:       "tcp://devnet.injective.dev:9900",
-			ChainStreamGrpcEndpoint: "tcp://devnet.injective.dev:9999",
-			ExchangeGrpcEndpoint:    "tcp://devnet.injective.dev:9910",
-			ExplorerGrpcEndpoint:    "tcp://devnet.api.injective.dev:9911",
+			ChainGrpcEndpoint:       "devnet.injective.dev:9900",
+			ChainStreamGrpcEndpoint: "devnet.injective.dev:9999",
+			ExchangeGrpcEndpoint:    "devnet.injective.dev:9910",
+			ExplorerGrpcEndpoint:    "devnet.api.injective.dev:9911",
 			ChainId:                 "injective-777",
 			FeeDenom:                "inj",
 			Name:                    "devnet",
@@ -393,7 +237,7 @@ func contains(s []string, e string) bool {
 	return false
 }
 
-func DialerFunc(ctx context.Context, addr string) (net.Conn, error) {
+func DialerFunc(_ context.Context, addr string) (net.Conn, error) {
 	return Connect(addr)
 }
 

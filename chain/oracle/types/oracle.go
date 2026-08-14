@@ -9,11 +9,28 @@ import (
 )
 
 const QuoteUSD = "USD"
-const TwapWindow = int64(5 * 60)              // 5 minute TWAP window
+const TwapWindow = int64(5 * 60) // 5 minute TWAP window
+
+// ValidateReservedProviderID rejects provider identifiers that collide with oracle quote semantics (e.g. QuoteUSD)
+// or with compound-key encoding (ProviderDelimiter / ProviderCompoundKeyDelimiter).
+func ValidateReservedProviderID(provider string) error {
+	if provider == QuoteUSD {
+		return errors.Wrap(ErrInvalidProvider, "provider identifier cannot be USD (reserved for oracle quote)")
+	}
+	if strings.Contains(provider, ProviderDelimiter) {
+		return errors.Wrapf(ErrInvalidProvider, "provider identifier must not contain %q", ProviderDelimiter)
+	}
+	return nil
+}
+
 const BandPriceMultiplier uint64 = 1000000000 // 1e9
 
 // MaxHistoricalPriceRecordAge is the maximum age of oracle price records to track.
 const MaxHistoricalPriceRecordAge = 60 * 5
+
+// MaxSymbolsPerCleanupRound caps how many (oracleType, symbol) groups are processed per
+// CleanupHistoricalPriceRecords call, bounding per-block work in BeginBlocker.
+var MaxSymbolsPerCleanupRound = 50
 const MaxStorkTimestampIntervalNano = 500_000_000 // 500ms
 
 var EighteenDecimals = math.LegacyNewDec(10).Power(18)
@@ -23,10 +40,6 @@ func GetOracleType(oracleTypeStr string) (OracleType, error) {
 	var oracleType OracleType
 
 	switch oracleTypeStr {
-	case "band":
-		oracleType = OracleType_Band
-	case "bandibc":
-		oracleType = OracleType_BandIBC
 	case "pricefeed":
 		oracleType = OracleType_PriceFeed
 	case "coinbase":
@@ -37,8 +50,14 @@ func GetOracleType(oracleTypeStr string) (OracleType, error) {
 		oracleType = OracleType_Pyth
 	case "stork":
 		oracleType = OracleType_Stork
+	case "chainlinkdatastreams":
+		oracleType = OracleType_ChainlinkDataStreams
+	case "pythpro":
+		oracleType = OracleType_PythPro
+	case "sedafast":
+		oracleType = OracleType_SedaFast
 	default:
-		return OracleType_Band, errors.Wrapf(ErrUnsupportedOracleType, "%s", oracleTypeStr)
+		return OracleType_Unspecified, errors.Wrapf(ErrUnsupportedOracleType, "%s", oracleTypeStr)
 	}
 	return oracleType, nil
 }
@@ -111,6 +130,10 @@ func (s SymbolPriceTimestamps) GetTimestamp(oracleType OracleType, symbol string
 
 // CheckPriceFeedThreshold returns true if the newPrice has changed beyond 100x or less than 1% of the last price
 func CheckPriceFeedThreshold(lastPrice, newPrice math.LegacyDec) bool {
+	if !lastPrice.IsPositive() {
+		return false
+	}
+
 	return newPrice.GT(lastPrice.Mul(math.LegacyNewDec(100))) || newPrice.LT(lastPrice.Quo(math.LegacyNewDec(100)))
 }
 

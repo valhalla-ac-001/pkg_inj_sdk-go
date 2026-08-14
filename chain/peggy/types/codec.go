@@ -37,6 +37,9 @@ func RegisterInterfaces(registry types.InterfaceRegistry) {
 		&MsgUpdateParams{},
 		&MsgBlacklistEthereumAddresses{},
 		&MsgRevokeEthereumBlacklist{},
+		&MsgCreateRateLimit{},
+		&MsgUpdateRateLimit{},
+		&MsgRemoveRateLimit{},
 	)
 
 	registry.RegisterInterface(
@@ -46,6 +49,13 @@ func RegisterInterfaces(registry types.InterfaceRegistry) {
 		&MsgWithdrawClaim{},
 		&MsgERC20DeployedClaim{},
 		&MsgValsetUpdatedClaim{},
+	)
+
+	registry.RegisterInterface(
+		"injective.peggy.v1.EthereumSigned",
+		(*EthereumSigned)(nil),
+		&OutgoingTxBatch{},
+		&Valset{},
 	)
 
 	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)
@@ -74,4 +84,8 @@ func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&MsgBlacklistEthereumAddresses{}, "peggy/MsgBlacklistEthereumAddresses", nil)
 	cdc.RegisterConcrete(&MsgRevokeEthereumBlacklist{}, "peggy/MsgRevokeEthereumBlacklist", nil)
 	cdc.RegisterConcrete(&Params{}, "peggy/Params", nil)
+	cdc.RegisterConcrete(&MsgCreateRateLimit{}, "peggy/MsgCreateRateLimit", nil)
+	cdc.RegisterConcrete(&MsgUpdateRateLimit{}, "peggy/MsgUpdateRateLimit", nil)
+	cdc.RegisterConcrete(&MsgRemoveRateLimit{}, "peggy/MsgRemoveRateLimit", nil)
+	cdc.RegisterConcrete(&RateLimit{}, "peggy/RateLimit", nil)
 }

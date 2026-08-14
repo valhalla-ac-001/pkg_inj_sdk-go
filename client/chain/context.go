@@ -3,54 +3,62 @@ package chain
 import (
 	"os"
 
+	evidencetypes "cosmossdk.io/x/evidence/types"
+	feegranttypes "cosmossdk.io/x/feegrant"
 	"cosmossdk.io/x/tx/signing"
-	"github.com/cosmos/cosmos-sdk/codec/address"
-	"github.com/cosmos/gogoproto/proto"
-
+	upgradetypes "cosmossdk.io/x/upgrade/types"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	probabilistic "github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/cosmos/cosmos-sdk/std"
-	"github.com/cosmos/cosmos-sdk/x/auth/tx"
-	"github.com/pkg/errors"
-
-	keyscodec "github.com/InjectiveLabs/sdk-go/chain/crypto/codec"
-
-	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
-
-	auction "github.com/InjectiveLabs/sdk-go/chain/auction/types"
-	exchange "github.com/InjectiveLabs/sdk-go/chain/exchange/types"
-	insurance "github.com/InjectiveLabs/sdk-go/chain/insurance/types"
-	ocr "github.com/InjectiveLabs/sdk-go/chain/ocr/types"
-	oracle "github.com/InjectiveLabs/sdk-go/chain/oracle/types"
-	peggy "github.com/InjectiveLabs/sdk-go/chain/peggy/types"
-	tokenfactory "github.com/InjectiveLabs/sdk-go/chain/tokenfactory/types"
-	chaintypes "github.com/InjectiveLabs/sdk-go/chain/types"
-	wasmx "github.com/InjectiveLabs/sdk-go/chain/wasmx/types"
-
-	evidencetypes "cosmossdk.io/x/evidence/types"
-	feegranttypes "cosmossdk.io/x/feegrant"
-	upgradetypes "cosmossdk.io/x/upgrade/types"
 	cosmostypes "github.com/cosmos/cosmos-sdk/types"
 	signingtypes "github.com/cosmos/cosmos-sdk/types/tx/signing"
+	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	vestingtypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 	authztypes "github.com/cosmos/cosmos-sdk/x/authz"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	consensustypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
 	crisistypes "github.com/cosmos/cosmos-sdk/x/crisis/types"
 	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	govv1types "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
+	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
 	paramproposaltypes "github.com/cosmos/cosmos-sdk/x/params/types/proposal"
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+	"github.com/cosmos/gogoproto/proto"
 	icatypes "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/types"
 	ibcfeetypes "github.com/cosmos/ibc-go/v8/modules/apps/29-fee/types"
-	ibcapplicationtypes "github.com/cosmos/ibc-go/v8/modules/apps/transfer/types"
+	ibctransfertypes "github.com/cosmos/ibc-go/v8/modules/apps/transfer/types"
+	ibcclienttypes "github.com/cosmos/ibc-go/v8/modules/core/02-client/types"
+	ibcconnectiontypes "github.com/cosmos/ibc-go/v8/modules/core/03-connection/types"
+	ibcchanneltypes "github.com/cosmos/ibc-go/v8/modules/core/04-channel/types"
 	ibccoretypes "github.com/cosmos/ibc-go/v8/modules/core/types"
 	ibclightclienttypes "github.com/cosmos/ibc-go/v8/modules/light-clients/06-solomachine"
 	ibctenderminttypes "github.com/cosmos/ibc-go/v8/modules/light-clients/07-tendermint"
+	"github.com/pkg/errors"
+
+	auction "github.com/InjectiveLabs/sdk-go/chain/auction/types"
+	keyscodec "github.com/InjectiveLabs/sdk-go/chain/crypto/codec"
+	downtimedetectortypes "github.com/InjectiveLabs/sdk-go/chain/downtime-detector/types"
+	erc20types "github.com/InjectiveLabs/sdk-go/chain/erc20/types"
+	evmtypes "github.com/InjectiveLabs/sdk-go/chain/evm/types"
+	exchange "github.com/InjectiveLabs/sdk-go/chain/exchange/types"
+	exchangev2 "github.com/InjectiveLabs/sdk-go/chain/exchange/types/v2"
+	insurance "github.com/InjectiveLabs/sdk-go/chain/insurance/types"
+	ocr "github.com/InjectiveLabs/sdk-go/chain/ocr/types"
+	oracle "github.com/InjectiveLabs/sdk-go/chain/oracle/types"
+	peggy "github.com/InjectiveLabs/sdk-go/chain/peggy/types"
+	permissions "github.com/InjectiveLabs/sdk-go/chain/permissions/types"
+	tokenfactory "github.com/InjectiveLabs/sdk-go/chain/tokenfactory/types"
+	txfeestypes "github.com/InjectiveLabs/sdk-go/chain/txfees/types"
+	chaintypes "github.com/InjectiveLabs/sdk-go/chain/types"
+	wasmx "github.com/InjectiveLabs/sdk-go/chain/wasmx/types"
 )
 
 // NewInterfaceRegistry returns a new InterfaceRegistry
@@ -74,42 +82,7 @@ func NewInterfaceRegistry() types.InterfaceRegistry {
 
 // NewTxConfig initializes new Cosmos TxConfig with certain signModes enabled.
 func NewTxConfig(signModes []signingtypes.SignMode) client.TxConfig {
-	interfaceRegistry := NewInterfaceRegistry()
-	keyscodec.RegisterInterfaces(interfaceRegistry)
-	std.RegisterInterfaces(interfaceRegistry)
-	exchange.RegisterInterfaces(interfaceRegistry)
-	oracle.RegisterInterfaces(interfaceRegistry)
-	insurance.RegisterInterfaces(interfaceRegistry)
-	auction.RegisterInterfaces(interfaceRegistry)
-	peggy.RegisterInterfaces(interfaceRegistry)
-	ocr.RegisterInterfaces(interfaceRegistry)
-	wasmx.RegisterInterfaces(interfaceRegistry)
-	chaintypes.RegisterInterfaces(interfaceRegistry)
-	tokenfactory.RegisterInterfaces(interfaceRegistry)
-
-	// more cosmos types
-	authtypes.RegisterInterfaces(interfaceRegistry)
-	authztypes.RegisterInterfaces(interfaceRegistry)
-	vestingtypes.RegisterInterfaces(interfaceRegistry)
-	banktypes.RegisterInterfaces(interfaceRegistry)
-	crisistypes.RegisterInterfaces(interfaceRegistry)
-	distributiontypes.RegisterInterfaces(interfaceRegistry)
-	evidencetypes.RegisterInterfaces(interfaceRegistry)
-	govtypes.RegisterInterfaces(interfaceRegistry)
-	govv1types.RegisterInterfaces(interfaceRegistry)
-	paramproposaltypes.RegisterInterfaces(interfaceRegistry)
-	ibcapplicationtypes.RegisterInterfaces(interfaceRegistry)
-	ibccoretypes.RegisterInterfaces(interfaceRegistry)
-	ibclightclienttypes.RegisterInterfaces(interfaceRegistry)
-	ibctenderminttypes.RegisterInterfaces(interfaceRegistry)
-	slashingtypes.RegisterInterfaces(interfaceRegistry)
-	stakingtypes.RegisterInterfaces(interfaceRegistry)
-	upgradetypes.RegisterInterfaces(interfaceRegistry)
-	feegranttypes.RegisterInterfaces(interfaceRegistry)
-	wasmtypes.RegisterInterfaces(interfaceRegistry)
-	icatypes.RegisterInterfaces(interfaceRegistry)
-
-	marshaler := codec.NewProtoCodec(interfaceRegistry)
+	marshaler, _ := createInjectiveProtoCodec()
 	return tx.NewTxConfig(marshaler, signModes)
 }
 
@@ -121,47 +94,12 @@ func NewClientContext(
 ) (client.Context, error) {
 	clientCtx := client.Context{}
 
-	interfaceRegistry := NewInterfaceRegistry()
-	keyscodec.RegisterInterfaces(interfaceRegistry)
-	std.RegisterInterfaces(interfaceRegistry)
-	exchange.RegisterInterfaces(interfaceRegistry)
-	insurance.RegisterInterfaces(interfaceRegistry)
-	auction.RegisterInterfaces(interfaceRegistry)
-	oracle.RegisterInterfaces(interfaceRegistry)
-	peggy.RegisterInterfaces(interfaceRegistry)
-	ocr.RegisterInterfaces(interfaceRegistry)
-	wasmx.RegisterInterfaces(interfaceRegistry)
-	chaintypes.RegisterInterfaces(interfaceRegistry)
-	tokenfactory.RegisterInterfaces(interfaceRegistry)
+	marshaler, interfaceRegistry := createInjectiveProtoCodec()
 
-	// more cosmos types
-	authtypes.RegisterInterfaces(interfaceRegistry)
-	authztypes.RegisterInterfaces(interfaceRegistry)
-	vestingtypes.RegisterInterfaces(interfaceRegistry)
-	banktypes.RegisterInterfaces(interfaceRegistry)
-	crisistypes.RegisterInterfaces(interfaceRegistry)
-	distributiontypes.RegisterInterfaces(interfaceRegistry)
-	evidencetypes.RegisterInterfaces(interfaceRegistry)
-	govtypes.RegisterInterfaces(interfaceRegistry)
-	govv1types.RegisterInterfaces(interfaceRegistry)
-	paramproposaltypes.RegisterInterfaces(interfaceRegistry)
-	ibcapplicationtypes.RegisterInterfaces(interfaceRegistry)
-	ibccoretypes.RegisterInterfaces(interfaceRegistry)
-	ibclightclienttypes.RegisterInterfaces(interfaceRegistry)
-	ibctenderminttypes.RegisterInterfaces(interfaceRegistry)
-	slashingtypes.RegisterInterfaces(interfaceRegistry)
-	stakingtypes.RegisterInterfaces(interfaceRegistry)
-	upgradetypes.RegisterInterfaces(interfaceRegistry)
-	feegranttypes.RegisterInterfaces(interfaceRegistry)
-	wasmtypes.RegisterInterfaces(interfaceRegistry)
-	icatypes.RegisterInterfaces(interfaceRegistry)
-	ibcfeetypes.RegisterInterfaces(interfaceRegistry)
-
-	marshaler := codec.NewProtoCodec(interfaceRegistry)
 	encodingConfig := EncodingConfig{
 		InterfaceRegistry: interfaceRegistry,
 		Marshaler:         marshaler,
-		TxConfig: NewTxConfig([]signingtypes.SignMode{
+		TxConfig: tx.NewTxConfig(marshaler, []signingtypes.SignMode{
 			signingtypes.SignMode_SIGN_MODE_DIRECT,
 		}),
 	}
@@ -196,6 +134,62 @@ func NewClientContext(
 	)
 
 	return clientCtx, nil
+}
+
+func createInjectiveProtoCodec() (injectiveCodec *codec.ProtoCodec, interfaceRegistry types.InterfaceRegistry) {
+	interfaceRegistry = NewInterfaceRegistry()
+
+	keyscodec.RegisterInterfaces(interfaceRegistry)
+	std.RegisterInterfaces(interfaceRegistry)
+	exchange.RegisterInterfaces(interfaceRegistry)
+	exchangev2.RegisterInterfaces(interfaceRegistry)
+	insurance.RegisterInterfaces(interfaceRegistry)
+	auction.RegisterInterfaces(interfaceRegistry)
+	oracle.RegisterInterfaces(interfaceRegistry)
+	peggy.RegisterInterfaces(interfaceRegistry)
+	ocr.RegisterInterfaces(interfaceRegistry)
+	wasmx.RegisterInterfaces(interfaceRegistry)
+	chaintypes.RegisterInterfaces(interfaceRegistry)
+	tokenfactory.RegisterInterfaces(interfaceRegistry)
+	permissions.RegisterInterfaces(interfaceRegistry)
+	txfeestypes.RegisterInterfaces(interfaceRegistry)
+	erc20types.RegisterInterfaces(interfaceRegistry)
+	evmtypes.RegisterInterfaces(interfaceRegistry)
+	downtimedetectortypes.RegisterInterfaces(interfaceRegistry)
+	// more cosmos types
+	authtypes.RegisterInterfaces(interfaceRegistry)
+	authztypes.RegisterInterfaces(interfaceRegistry)
+	vestingtypes.RegisterInterfaces(interfaceRegistry)
+	banktypes.RegisterInterfaces(interfaceRegistry)
+	crisistypes.RegisterInterfaces(interfaceRegistry)
+	distributiontypes.RegisterInterfaces(interfaceRegistry)
+	evidencetypes.RegisterInterfaces(interfaceRegistry)
+	govtypes.RegisterInterfaces(interfaceRegistry)
+	govv1types.RegisterInterfaces(interfaceRegistry)
+	paramproposaltypes.RegisterInterfaces(interfaceRegistry)
+	ibccoretypes.RegisterInterfaces(interfaceRegistry)
+	ibclightclienttypes.RegisterInterfaces(interfaceRegistry)
+	ibctenderminttypes.RegisterInterfaces(interfaceRegistry)
+	slashingtypes.RegisterInterfaces(interfaceRegistry)
+	stakingtypes.RegisterInterfaces(interfaceRegistry)
+	upgradetypes.RegisterInterfaces(interfaceRegistry)
+	consensustypes.RegisterInterfaces(interfaceRegistry)
+	minttypes.RegisterInterfaces(interfaceRegistry)
+	feegranttypes.RegisterInterfaces(interfaceRegistry)
+	wasmtypes.RegisterInterfaces(interfaceRegistry)
+	icatypes.RegisterInterfaces(interfaceRegistry)
+	ibcfeetypes.RegisterInterfaces(interfaceRegistry)
+	ibcchanneltypes.RegisterInterfaces(interfaceRegistry)
+	ibcclienttypes.RegisterInterfaces(interfaceRegistry)
+	ibcconnectiontypes.RegisterInterfaces(interfaceRegistry)
+	ibctransfertypes.RegisterInterfaces(interfaceRegistry)
+	evmtypes.RegisterInterfaces(interfaceRegistry)
+	erc20types.RegisterInterfaces(interfaceRegistry)
+	probabilistic.RegisterInterfaces(interfaceRegistry)
+
+	injectiveCodec = codec.NewProtoCodec(interfaceRegistry)
+
+	return injectiveCodec, interfaceRegistry
 }
 
 type EncodingConfig struct {

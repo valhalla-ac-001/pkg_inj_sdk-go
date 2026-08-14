@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	network := common.LoadNetwork("mainnet", "sentry")
+	network := common.LoadNetwork("mainnet", "lb")
 	explorerClient, err := explorerclient.NewExplorerClient(network)
 	if err != nil {
 		panic(err)
@@ -23,6 +23,6 @@ func main() {
 		fmt.Println(err)
 	}
 
-	str, _ := json.MarshalIndent(res, "", " ")
+	str, _ := json.MarshalIndent(res, "", "\t")
 	fmt.Print(string(str))
 }

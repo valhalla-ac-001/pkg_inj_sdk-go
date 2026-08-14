@@ -5,14 +5,13 @@ import (
 
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	gov "github.com/cosmos/cosmos-sdk/x/gov/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	gov "github.com/cosmos/cosmos-sdk/x/gov/types"
-	"github.com/ethereum/go-ethereum/common"
-
 	oracletypes "github.com/InjectiveLabs/sdk-go/chain/oracle/types"
+	chaintypes "github.com/InjectiveLabs/sdk-go/chain/types"
 )
 
 // constants
@@ -34,6 +33,7 @@ const (
 	ProposalTypeBinaryOptionsMarketLaunch          string = "ProposalTypeBinaryOptionsMarketLaunch"
 	ProposalTypeBinaryOptionsMarketParamUpdate     string = "ProposalTypeBinaryOptionsMarketParamUpdate"
 	ProposalAtomicMarketOrderFeeMultiplierSchedule string = "ProposalAtomicMarketOrderFeeMultiplierSchedule"
+	ProposalDenomMinNotional                       string = "ProposalDenomMinNotional"
 )
 
 func init() {
@@ -54,6 +54,7 @@ func init() {
 	govtypes.RegisterProposalType(ProposalTypeBinaryOptionsMarketLaunch)
 	govtypes.RegisterProposalType(ProposalTypeBinaryOptionsMarketParamUpdate)
 	govtypes.RegisterProposalType(ProposalAtomicMarketOrderFeeMultiplierSchedule)
+	govtypes.RegisterProposalType(ProposalDenomMinNotional)
 }
 
 func SafeIsPositiveInt(v math.Int) bool {
@@ -209,25 +210,12 @@ func (p *BatchExchangeModificationProposal) ValidateBasic() error {
 		}
 	}
 
-	return govtypes.ValidateAbstract(p)
-}
-
-// NewSpotMarketParamUpdateProposal returns new instance of SpotMarketParamUpdateProposal
-func NewSpotMarketParamUpdateProposal(title, description string, marketID common.Hash, makerFeeRate, takerFeeRate, relayerFeeShareRate, minPriceTickSize, minQuantityTickSize, minNotional *math.LegacyDec, status MarketStatus, ticker string) *SpotMarketParamUpdateProposal {
-	return &SpotMarketParamUpdateProposal{
-		title,
-		description,
-		marketID.Hex(),
-		makerFeeRate,
-		takerFeeRate,
-		relayerFeeShareRate,
-		minPriceTickSize,
-		minQuantityTickSize,
-		status,
-		ticker,
-		minNotional,
-		nil,
+	if p.DenomMinNotionalProposal != nil {
+		if err := p.DenomMinNotionalProposal.ValidateBasic(); err != nil {
+			return err
+		}
 	}
+	return govtypes.ValidateAbstract(p)
 }
 
 // Implements Proposal Interface
@@ -300,13 +288,8 @@ func (p *SpotMarketParamUpdateProposal) ValidateBasic() error {
 	}
 
 	if p.AdminInfo != nil {
-		if p.AdminInfo.Admin != "" {
-			if _, err := sdk.AccAddressFromBech32(p.AdminInfo.Admin); err != nil {
-				return errors.Wrap(ErrInvalidAddress, err.Error())
-			}
-		}
-		if p.AdminInfo.AdminPermissions > MaxPerm {
-			return ErrInvalidPermissions
+		if err := p.AdminInfo.ValidateBasic(); err != nil {
+			return err
 		}
 	}
 
@@ -326,6 +309,13 @@ func (p *SpotMarketParamUpdateProposal) ValidateBasic() error {
 		return errors.Wrap(ErrInvalidMarketStatus, p.Status.String())
 	}
 
+	if p.BaseDecimals > MaxDecimals {
+		return errors.Wrap(ErrInvalidDenomDecimal, "base decimals is invalid")
+	}
+	if p.QuoteDecimals > MaxDecimals {
+		return errors.Wrap(ErrInvalidDenomDecimal, "quote decimals is invalid")
+	}
+
 	return govtypes.ValidateAbstract(p)
 }
 
@@ -341,6 +331,8 @@ func NewSpotMarketLaunchProposal(
 	minNotional math.LegacyDec,
 	makerFeeRate *math.LegacyDec,
 	takerFeeRate *math.LegacyDec,
+	baseDecimals uint32,
+	quoteDecimals uint32,
 ) *SpotMarketLaunchProposal {
 	return &SpotMarketLaunchProposal{
 		Title:               title,
@@ -353,6 +345,8 @@ func NewSpotMarketLaunchProposal(
 		MinNotional:         minNotional,
 		MakerFeeRate:        makerFeeRate,
 		TakerFeeRate:        takerFeeRate,
+		BaseDecimals:        baseDecimals,
+		QuoteDecimals:       quoteDecimals,
 	}
 }
 
@@ -385,8 +379,14 @@ func (p *SpotMarketLaunchProposal) ValidateBasic() error {
 	if p.BaseDenom == "" {
 		return errors.Wrap(ErrInvalidBaseDenom, "base denom should not be empty")
 	}
+	if len(p.BaseDenom) > MaxMarketLaunchDenomLength {
+		return errors.Wrapf(ErrInvalidBaseDenom, "base denom should not exceed %d characters", MaxMarketLaunchDenomLength)
+	}
 	if p.QuoteDenom == "" {
 		return errors.Wrap(ErrInvalidQuoteDenom, "quote denom should not be empty")
+	}
+	if len(p.QuoteDenom) > MaxMarketLaunchDenomLength {
+		return errors.Wrapf(ErrInvalidQuoteDenom, "quote denom should not exceed %d characters", MaxMarketLaunchDenomLength)
 	}
 	if p.BaseDenom == p.QuoteDenom {
 		return ErrSameDenoms
@@ -424,48 +424,20 @@ func (p *SpotMarketLaunchProposal) ValidateBasic() error {
 		}
 	}
 
-	return govtypes.ValidateAbstract(p)
-}
-
-// NewDerivativeMarketParamUpdateProposal returns new instance of DerivativeMarketParamUpdateProposal
-func NewDerivativeMarketParamUpdateProposal(
-	title string,
-	description string,
-	marketID string,
-	initialMarginRatio *math.LegacyDec,
-	maintenanceMarginRatio *math.LegacyDec,
-	makerFeeRate *math.LegacyDec,
-	takerFeeRate *math.LegacyDec,
-	relayerFeeShareRate *math.LegacyDec,
-	minPriceTickSize *math.LegacyDec,
-	minQuantityTickSize *math.LegacyDec,
-	minNotional *math.LegacyDec,
-	hourlyInterestRate *math.LegacyDec,
-	hourlyFundingRateCap *math.LegacyDec,
-	status MarketStatus,
-	oracleParams *OracleParams,
-	ticker string,
-	adminInfo *AdminInfo,
-) *DerivativeMarketParamUpdateProposal {
-	return &DerivativeMarketParamUpdateProposal{
-		Title:                  title,
-		Description:            description,
-		MarketId:               marketID,
-		InitialMarginRatio:     initialMarginRatio,
-		MaintenanceMarginRatio: maintenanceMarginRatio,
-		MakerFeeRate:           makerFeeRate,
-		TakerFeeRate:           takerFeeRate,
-		RelayerFeeShareRate:    relayerFeeShareRate,
-		MinPriceTickSize:       minPriceTickSize,
-		MinQuantityTickSize:    minQuantityTickSize,
-		HourlyInterestRate:     hourlyInterestRate,
-		HourlyFundingRateCap:   hourlyFundingRateCap,
-		Status:                 status,
-		OracleParams:           oracleParams,
-		Ticker:                 ticker,
-		MinNotional:            minNotional,
-		AdminInfo:              adminInfo,
+	if p.BaseDecimals > MaxDecimals {
+		return errors.Wrap(ErrInvalidDenomDecimal, "base decimals is invalid")
 	}
+	if p.QuoteDecimals > MaxDecimals {
+		return errors.Wrap(ErrInvalidDenomDecimal, "quote decimals is invalid")
+	}
+
+	if p.AdminInfo != nil {
+		if err := p.AdminInfo.ValidateBasic(); err != nil {
+			return err
+		}
+	}
+
+	return govtypes.ValidateAbstract(p)
 }
 
 // Implements Proposal Interface
@@ -567,13 +539,8 @@ func (p *DerivativeMarketParamUpdateProposal) ValidateBasic() error {
 	}
 
 	if p.AdminInfo != nil {
-		if p.AdminInfo.Admin != "" {
-			if _, err := sdk.AccAddressFromBech32(p.AdminInfo.Admin); err != nil {
-				return errors.Wrap(ErrInvalidAddress, err.Error())
-			}
-		}
-		if p.AdminInfo.AdminPermissions > MaxPerm {
-			return ErrInvalidPermissions
+		if err := p.AdminInfo.ValidateBasic(); err != nil {
+			return err
 		}
 	}
 
@@ -649,18 +616,6 @@ func (p *MarketForcedSettlementProposal) ValidateBasic() error {
 	return govtypes.ValidateAbstract(p)
 }
 
-// NewUpdateDenomDecimalsProposal returns new instance of UpdateDenomDecimalsProposal
-func NewUpdateDenomDecimalsProposal(
-	title, description string,
-	denomDecimals []*DenomDecimals,
-) *UpdateDenomDecimalsProposal {
-	return &UpdateDenomDecimalsProposal{
-		Title:         title,
-		Description:   description,
-		DenomDecimals: denomDecimals,
-	}
-}
-
 // Implements Proposal Interface
 var _ govtypes.Content = &UpdateDenomDecimalsProposal{}
 
@@ -697,7 +652,7 @@ func (d *DenomDecimals) Validate() error {
 		return errors.Wrap(sdkerrors.ErrInvalidCoins, d.Denom)
 	}
 
-	if d.Decimals <= 0 || d.Decimals > uint64(MaxOracleScaleFactor) {
+	if d.Decimals > uint64(MaxDecimals) {
 		return errors.Wrapf(ErrInvalidDenomDecimal, "invalid decimals passed: %d", d.Decimals)
 	}
 	return nil
@@ -721,16 +676,23 @@ func (p *OracleParams) ValidateBasic() error {
 	if p.OracleBase == "" {
 		return errors.Wrap(ErrInvalidOracle, "oracle base should not be empty")
 	}
+	if len(p.OracleBase) > MaxOracleSymbolLength {
+		return errors.Wrapf(ErrInvalidOracle, "oracle base should not exceed %d characters", MaxOracleSymbolLength)
+	}
 	if p.OracleQuote == "" {
 		return errors.Wrap(ErrInvalidOracle, "oracle quote should not be empty")
+	}
+	if len(p.OracleQuote) > MaxOracleSymbolLength {
+		return errors.Wrapf(ErrInvalidOracle, "oracle quote should not exceed %d characters", MaxOracleSymbolLength)
 	}
 	if p.OracleBase == p.OracleQuote {
 		return ErrSameOracles
 	}
 	switch p.OracleType {
-	case oracletypes.OracleType_Band, oracletypes.OracleType_PriceFeed, oracletypes.OracleType_Coinbase, oracletypes.OracleType_Chainlink, oracletypes.OracleType_Razor,
-		oracletypes.OracleType_Dia, oracletypes.OracleType_API3, oracletypes.OracleType_Uma, oracletypes.OracleType_Pyth, oracletypes.OracleType_BandIBC, oracletypes.OracleType_Provider,
-		oracletypes.OracleType_Stork:
+	case oracletypes.OracleType_PriceFeed, oracletypes.OracleType_Coinbase, oracletypes.OracleType_Razor,
+		oracletypes.OracleType_Dia, oracletypes.OracleType_API3, oracletypes.OracleType_Uma, oracletypes.OracleType_Pyth,
+		oracletypes.OracleType_PythPro, oracletypes.OracleType_Provider, oracletypes.OracleType_Stork,
+		oracletypes.OracleType_ChainlinkDataStreams, oracletypes.OracleType_SedaFast:
 
 	default:
 		return errors.Wrap(ErrInvalidOracleType, p.OracleType.String())
@@ -740,33 +702,63 @@ func (p *OracleParams) ValidateBasic() error {
 		return ErrExceedsMaxOracleScaleFactor
 	}
 
-	return nil
-}
-
-func NewProviderOracleParams(
-	symbol string,
-	oracleProvider string,
-	oracleScaleFactor uint32,
-	oracleType oracletypes.OracleType,
-) *ProviderOracleParams {
-	return &ProviderOracleParams{
-		Symbol:            symbol,
-		Provider:          oracleProvider,
-		OracleScaleFactor: oracleScaleFactor,
-		OracleType:        oracleType,
+	if p.OracleType == oracletypes.OracleType_Provider {
+		if err := oracletypes.ValidateProviderDerivativeOracleLayout(p.OracleBase, p.OracleQuote); err != nil {
+			return errors.Wrap(ErrInvalidOracle, err.Error())
+		}
+		if err := oracletypes.ValidateReservedProviderID(p.OracleQuote); err != nil {
+			return errors.Wrap(ErrInvalidOracle, err.Error())
+		}
 	}
+
+	if p.OracleType == oracletypes.OracleType_PythPro {
+		if err := oracletypes.ValidateCanonicalPythProFeedID(p.OracleBase); err != nil {
+			return errors.Wrap(ErrInvalidOracle, err.Error())
+		}
+		if p.OracleQuote != oracletypes.QuoteUSD {
+			if err := oracletypes.ValidateCanonicalPythProFeedID(p.OracleQuote); err != nil {
+				return errors.Wrap(ErrInvalidOracle, err.Error())
+			}
+		}
+	}
+
+	if p.OracleType == oracletypes.OracleType_SedaFast {
+		if err := oracletypes.ValidateCanonicalSedaFastFeedID(p.OracleBase); err != nil {
+			return errors.Wrap(ErrInvalidOracle, err.Error())
+		}
+		if p.OracleQuote != oracletypes.QuoteUSD {
+			if err := oracletypes.ValidateCanonicalSedaFastFeedID(p.OracleQuote); err != nil {
+				return errors.Wrap(ErrInvalidOracle, err.Error())
+			}
+		}
+	}
+
+	return nil
 }
 
 func (p *ProviderOracleParams) ValidateBasic() error {
 	if p.Symbol == "" {
 		return errors.Wrap(ErrInvalidOracle, "oracle symbol should not be empty")
 	}
+	if len(p.Symbol) > MaxOracleSymbolLength {
+		return errors.Wrapf(ErrInvalidOracle, "oracle symbol should not exceed %d characters", MaxOracleSymbolLength)
+	}
 	if p.Provider == "" {
 		return errors.Wrap(ErrInvalidOracle, "oracle provider should not be empty")
+	}
+	if len(p.Provider) > MaxOracleProviderLength {
+		return errors.Wrapf(ErrInvalidOracle, "oracle provider should not exceed %d characters", MaxOracleProviderLength)
 	}
 
 	if p.OracleType != oracletypes.OracleType_Provider {
 		return errors.Wrap(ErrInvalidOracleType, p.OracleType.String())
+	}
+
+	if err := oracletypes.ValidateProviderDerivativeOracleLayout(p.Symbol, p.Provider); err != nil {
+		return errors.Wrap(ErrInvalidOracle, err.Error())
+	}
+	if err := oracletypes.ValidateReservedProviderID(p.Provider); err != nil {
+		return errors.Wrap(ErrInvalidOracle, err.Error())
 	}
 
 	if p.OracleScaleFactor > MaxOracleScaleFactor {
@@ -830,6 +822,9 @@ func (p *PerpetualMarketLaunchProposal) ValidateBasic() error {
 	if p.QuoteDenom == "" {
 		return errors.Wrap(ErrInvalidQuoteDenom, "quote denom should not be empty")
 	}
+	if len(p.QuoteDenom) > MaxMarketLaunchDenomLength {
+		return errors.Wrapf(ErrInvalidQuoteDenom, "quote denom should not exceed %d characters", MaxMarketLaunchDenomLength)
+	}
 
 	oracleParams := NewOracleParams(p.OracleBase, p.OracleQuote, p.OracleScaleFactor, p.OracleType)
 	if err := oracleParams.ValidateBasic(); err != nil {
@@ -850,7 +845,7 @@ func (p *PerpetualMarketLaunchProposal) ValidateBasic() error {
 	if p.MakerFeeRate.GT(p.TakerFeeRate) {
 		return ErrFeeRatesRelation
 	}
-	if p.InitialMarginRatio.LT(p.MaintenanceMarginRatio) {
+	if p.InitialMarginRatio.LTE(p.MaintenanceMarginRatio) {
 		return ErrMarginsRelation
 	}
 
@@ -862,6 +857,12 @@ func (p *PerpetualMarketLaunchProposal) ValidateBasic() error {
 	}
 	if err := ValidateMinNotional(p.MinNotional); err != nil {
 		return errors.Wrap(ErrInvalidNotional, err.Error())
+	}
+
+	if p.AdminInfo != nil {
+		if err := p.AdminInfo.ValidateBasic(); err != nil {
+			return err
+		}
 	}
 
 	return govtypes.ValidateAbstract(p)
@@ -922,6 +923,9 @@ func (p *ExpiryFuturesMarketLaunchProposal) ValidateBasic() error {
 	if p.QuoteDenom == "" {
 		return errors.Wrap(ErrInvalidQuoteDenom, "quote denom should not be empty")
 	}
+	if len(p.QuoteDenom) > MaxMarketLaunchDenomLength {
+		return errors.Wrapf(ErrInvalidQuoteDenom, "quote denom should not exceed %d characters", MaxMarketLaunchDenomLength)
+	}
 
 	oracleParams := NewOracleParams(p.OracleBase, p.OracleQuote, p.OracleScaleFactor, p.OracleType)
 	if err := oracleParams.ValidateBasic(); err != nil {
@@ -945,7 +949,7 @@ func (p *ExpiryFuturesMarketLaunchProposal) ValidateBasic() error {
 	if p.MakerFeeRate.GT(p.TakerFeeRate) {
 		return ErrFeeRatesRelation
 	}
-	if p.InitialMarginRatio.LT(p.MaintenanceMarginRatio) {
+	if p.InitialMarginRatio.LTE(p.MaintenanceMarginRatio) {
 		return ErrMarginsRelation
 	}
 
@@ -959,27 +963,13 @@ func (p *ExpiryFuturesMarketLaunchProposal) ValidateBasic() error {
 		return errors.Wrap(ErrInvalidNotional, err.Error())
 	}
 
-	return govtypes.ValidateAbstract(p)
-}
+	if p.AdminInfo != nil {
+		if err := p.AdminInfo.ValidateBasic(); err != nil {
+			return err
+		}
+	}
 
-// NewTradingRewardCampaignUpdateProposal returns new instance of TradingRewardCampaignLaunchProposal
-func NewTradingRewardCampaignUpdateProposal(
-	title, description string,
-	campaignInfo *TradingRewardCampaignInfo,
-	rewardPoolsAdditions []*CampaignRewardPool,
-	rewardPoolsUpdates []*CampaignRewardPool,
-) *TradingRewardCampaignUpdateProposal {
-	p := &TradingRewardCampaignUpdateProposal{
-		Title:                        title,
-		Description:                  description,
-		CampaignInfo:                 campaignInfo,
-		CampaignRewardPoolsAdditions: rewardPoolsAdditions,
-		CampaignRewardPoolsUpdates:   rewardPoolsUpdates,
-	}
-	if err := p.ValidateBasic(); err != nil {
-		panic(err)
-	}
-	return p
+	return govtypes.ValidateAbstract(p)
 }
 
 // Implements Proposal Interface
@@ -1089,30 +1079,12 @@ func (p *TradingRewardPendingPointsUpdateProposal) ValidateBasic() error {
 		}
 	}
 
-	hasDuplicateAccountAddresses := HasDuplicates(accountAddresses)
+	hasDuplicateAccountAddresses := chaintypes.HasDuplicate(accountAddresses)
 	if hasDuplicateAccountAddresses {
 		return errors.Wrap(ErrInvalidTradingRewardsPendingPointsUpdate, "account address cannot have duplicates")
 	}
 
 	return govtypes.ValidateAbstract(p)
-}
-
-// NewTradingRewardCampaignLaunchProposal returns new instance of TradingRewardCampaignLaunchProposal
-func NewTradingRewardCampaignLaunchProposal(
-	title, description string,
-	campaignInfo *TradingRewardCampaignInfo,
-	campaignRewardPools []*CampaignRewardPool,
-) *TradingRewardCampaignLaunchProposal {
-	p := &TradingRewardCampaignLaunchProposal{
-		Title:               title,
-		Description:         description,
-		CampaignInfo:        campaignInfo,
-		CampaignRewardPools: campaignRewardPools,
-	}
-	if err := p.ValidateBasic(); err != nil {
-		panic(err)
-	}
-	return p
 }
 
 // Implements Proposal Interface
@@ -1185,7 +1157,7 @@ func (t *TradingRewardCampaignBoostInfo) ValidateBasic() error {
 		return errors.Wrap(ErrInvalidTradingRewardCampaign, "boosted derivative market ids is not matching derivative market multipliers")
 	}
 
-	hasDuplicatesInMarkets := HasDuplicates(t.BoostedSpotMarketIds) || HasDuplicates(t.BoostedDerivativeMarketIds)
+	hasDuplicatesInMarkets := chaintypes.HasDuplicate(t.BoostedSpotMarketIds) || chaintypes.HasDuplicate(t.BoostedDerivativeMarketIds)
 	if hasDuplicatesInMarkets {
 		return errors.Wrap(ErrInvalidTradingRewardCampaign, "campaign contains duplicate boosted market ids")
 	}
@@ -1241,7 +1213,7 @@ func (c *TradingRewardCampaignInfo) ValidateBasic() error {
 		return errors.Wrap(ErrInvalidTradingRewardCampaign, "campaign quote denoms cannot be nil")
 	}
 
-	hasTradingRewardBoostInfoDefined := c != nil && c.TradingRewardBoostInfo != nil
+	hasTradingRewardBoostInfoDefined := c.TradingRewardBoostInfo != nil
 	if hasTradingRewardBoostInfoDefined {
 		if err := c.TradingRewardBoostInfo.ValidateBasic(); err != nil {
 			return err
@@ -1254,7 +1226,7 @@ func (c *TradingRewardCampaignInfo) ValidateBasic() error {
 		}
 	}
 
-	hasDuplicatesInDisqualifiedMarkets := c != nil && HasDuplicates(c.DisqualifiedMarketIds)
+	hasDuplicatesInDisqualifiedMarkets := chaintypes.HasDuplicate(c.DisqualifiedMarketIds)
 	if hasDuplicatesInDisqualifiedMarkets {
 		return errors.Wrap(ErrInvalidTradingRewardCampaign, "campaign contains duplicate disqualified market ids")
 	}
@@ -1278,7 +1250,7 @@ func validateCampaignRewardPool(pool *CampaignRewardPool, campaignDurationSecond
 
 	prevStartTimestamp = pool.StartTimestamp
 
-	hasDuplicatesInEpochRewards := HasDuplicatesCoin(pool.MaxCampaignRewards)
+	hasDuplicatesInEpochRewards := chaintypes.HasDuplicateCoins(pool.MaxCampaignRewards)
 	if hasDuplicatesInEpochRewards {
 		return 0, errors.Wrap(ErrInvalidTradingRewardCampaign, "reward pool campaign contains duplicate market coins")
 	}
@@ -1294,15 +1266,6 @@ func validateCampaignRewardPool(pool *CampaignRewardPool, campaignDurationSecond
 	}
 
 	return prevStartTimestamp, nil
-}
-
-// NewFeeDiscountProposal returns new instance of FeeDiscountProposal
-func NewFeeDiscountProposal(title, description string, schedule *FeeDiscountSchedule) *FeeDiscountProposal {
-	return &FeeDiscountProposal{
-		Title:       title,
-		Description: description,
-		Schedule:    schedule,
-	}
 }
 
 // Implements Proposal Interface
@@ -1340,7 +1303,7 @@ func (p *FeeDiscountProposal) ValidateBasic() error {
 		return errors.Wrap(ErrInvalidFeeDiscountSchedule, "new fee discount schedule must have have bucket durations of at least 10 seconds")
 	}
 
-	if HasDuplicates(p.Schedule.QuoteDenoms) {
+	if chaintypes.HasDuplicate(p.Schedule.QuoteDenoms) {
 		return errors.Wrap(ErrInvalidFeeDiscountSchedule, "new fee discount schedule cannot have duplicate quote denoms")
 	}
 
@@ -1350,7 +1313,7 @@ func (p *FeeDiscountProposal) ValidateBasic() error {
 		}
 	}
 
-	if HasDuplicates(p.Schedule.DisqualifiedMarketIds) {
+	if chaintypes.HasDuplicate(p.Schedule.DisqualifiedMarketIds) {
 		return errors.Wrap(ErrInvalidFeeDiscountSchedule, "new fee discount schedule cannot have duplicate disqualified market ids")
 	}
 
@@ -1492,11 +1455,14 @@ func (p *BinaryOptionsMarketLaunchProposal) ValidateBasic() error {
 	if p.Ticker == "" || len(p.Ticker) > MaxTickerLength {
 		return errors.Wrapf(ErrInvalidTicker, "ticker should not be empty or exceed %d characters", MaxTickerLength)
 	}
-	if p.OracleSymbol == "" {
-		return errors.Wrap(ErrInvalidOracle, "oracle symbol should not be empty")
+	if p.OracleSymbol == "" || len(p.OracleSymbol) > MaxOracleSymbolLength {
+		return errors.Wrapf(ErrInvalidOracle, "oracle symbol should not be empty or exceed %d characters", MaxOracleSymbolLength)
 	}
 	if p.OracleProvider == "" {
 		return errors.Wrap(ErrInvalidOracle, "oracle provider should not be empty")
+	}
+	if len(p.OracleProvider) > MaxOracleProviderLength {
+		return errors.Wrapf(ErrInvalidOracle, "oracle provider should not exceed %d characters", MaxOracleProviderLength)
 	}
 	if p.OracleType != oracletypes.OracleType_Provider {
 		return errors.Wrap(ErrInvalidOracleType, p.OracleType.String())
@@ -1517,6 +1483,9 @@ func (p *BinaryOptionsMarketLaunchProposal) ValidateBasic() error {
 	}
 	if p.QuoteDenom == "" {
 		return errors.Wrap(ErrInvalidQuoteDenom, "quote denom should not be empty")
+	}
+	if len(p.QuoteDenom) > MaxMarketLaunchDenomLength {
+		return errors.Wrapf(ErrInvalidQuoteDenom, "quote denom should not exceed %d characters", MaxMarketLaunchDenomLength)
 	}
 	if err := ValidateMakerFee(p.MakerFeeRate); err != nil {
 		return err
@@ -1540,37 +1509,6 @@ func (p *BinaryOptionsMarketLaunchProposal) ValidateBasic() error {
 	}
 
 	return govtypes.ValidateAbstract(p)
-}
-
-// NewBinaryOptionsMarketParamUpdateProposal returns new instance of BinaryOptionsMarketParamUpdateProposal
-func NewBinaryOptionsMarketParamUpdateProposal(
-	title string,
-	description string,
-	marketID string,
-	makerFeeRate, takerFeeRate, relayerFeeShareRate, minPriceTickSize, minQuantityTickSize, minNotional *math.LegacyDec,
-	expirationTimestamp, settlementTimestamp int64,
-	admin string,
-	status MarketStatus,
-	oracleParams *ProviderOracleParams,
-	ticker string,
-) *BinaryOptionsMarketParamUpdateProposal {
-	return &BinaryOptionsMarketParamUpdateProposal{
-		Title:               title,
-		Description:         description,
-		MarketId:            marketID,
-		MakerFeeRate:        makerFeeRate,
-		TakerFeeRate:        takerFeeRate,
-		RelayerFeeShareRate: relayerFeeShareRate,
-		MinPriceTickSize:    minPriceTickSize,
-		MinQuantityTickSize: minQuantityTickSize,
-		MinNotional:         minNotional,
-		ExpirationTimestamp: expirationTimestamp,
-		SettlementTimestamp: settlementTimestamp,
-		Admin:               admin,
-		Status:              status,
-		OracleParams:        oracleParams,
-		Ticker:              ticker,
-	}
 }
 
 // Implements Proposal Interface
@@ -1744,4 +1682,53 @@ func (p *AtomicMarketOrderFeeMultiplierScheduleProposal) ValidateBasic() error {
 		}
 	}
 	return govtypes.ValidateAbstract(p)
+}
+
+// Implements Proposal Interface
+var _ govtypes.Content = &DenomMinNotionalProposal{}
+
+// GetTitle returns the title of this proposal
+func (p *DenomMinNotionalProposal) GetTitle() string {
+	return p.Title
+}
+
+// GetDescription returns the description of this proposal
+func (p *DenomMinNotionalProposal) GetDescription() string {
+	return p.Description
+}
+
+// ProposalRoute returns router key of this proposal.
+func (p *DenomMinNotionalProposal) ProposalRoute() string { return RouterKey }
+
+// ProposalType returns proposal type of this proposal.
+func (p *DenomMinNotionalProposal) ProposalType() string {
+	return ProposalDenomMinNotional
+}
+
+func (p *DenomMinNotionalProposal) ValidateBasic() error {
+	for _, minNotional := range p.DenomMinNotionals {
+		denom := minNotional.Denom
+		amount := minNotional.MinNotional
+
+		if denom == "" {
+			return fmt.Errorf("denom cannot be empty")
+		}
+
+		if amount.IsNil() || amount.IsNegative() {
+			return fmt.Errorf("min notional must be positive")
+		}
+	}
+	return govtypes.ValidateAbstract(p)
+}
+
+func (a *AdminInfo) ValidateBasic() error {
+	if a.Admin != "" {
+		if _, err := sdk.AccAddressFromBech32(a.Admin); err != nil {
+			return errors.Wrap(ErrInvalidAddress, err.Error())
+		}
+	}
+	if a.AdminPermissions > MaxPerm {
+		return ErrInvalidPermissions
+	}
+	return nil
 }

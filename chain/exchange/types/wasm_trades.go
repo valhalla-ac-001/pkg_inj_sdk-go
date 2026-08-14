@@ -67,19 +67,13 @@ func (t *SyntheticTrade) Validate() error {
 		return ErrInvalidPrice
 	}
 
-	// Margin can be 0 or even negative!
-	if t.Margin.IsNil() {
+	if t.Margin.IsNil() || t.Margin.IsNegative() {
 		return ErrInvalidMargin
 	}
 
 	return nil
 }
 
-func (t *SyntheticTrade) ToPositionDelta() *PositionDelta {
-	return &PositionDelta{
-		IsLong:            t.IsBuy,
-		ExecutionQuantity: t.Quantity,
-		ExecutionMargin:   t.Margin,
-		ExecutionPrice:    t.Price,
-	}
+func (t *SyntheticTrade) IsReduceOnly() bool {
+	return t.Margin.IsZero()
 }

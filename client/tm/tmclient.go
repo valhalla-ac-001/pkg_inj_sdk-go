@@ -18,6 +18,7 @@ type TendermintClient interface {
 	GetBlockResults(ctx context.Context, height int64) (*ctypes.ResultBlockResults, error)
 	GetValidatorSet(ctx context.Context, height int64) (*ctypes.ResultValidators, error)
 	GetABCIInfo(ctx context.Context) (*ctypes.ResultABCIInfo, error)
+	GetStatus(ctx context.Context) (*ctypes.ResultStatus, error)
 }
 
 type tmClient struct {
@@ -26,7 +27,7 @@ type tmClient struct {
 }
 
 func NewRPCClient(rpcNodeAddr string, logger *logrus.Logger) TendermintClient {
-	rpcClient, err := rpchttp.NewWithTimeout(rpcNodeAddr, "/websocket", 10)
+	rpcClient, err := rpchttp.NewWithTimeout(rpcNodeAddr, 10)
 	if err != nil {
 		logger.Errorln("[INJ-GO-SDK] Failed to init rpcClient: ", err)
 	}
@@ -90,4 +91,9 @@ func (c *tmClient) GetValidatorSet(ctx context.Context, height int64) (*ctypes.R
 // GetABCIInfo returns the node abci version
 func (c *tmClient) GetABCIInfo(ctx context.Context) (*ctypes.ResultABCIInfo, error) {
 	return c.rpcClient.ABCIInfo(ctx)
+}
+
+// GetStatus returns the node status.
+func (c *tmClient) GetStatus(ctx context.Context) (*ctypes.ResultStatus, error) {
+	return c.rpcClient.Status(ctx)
 }

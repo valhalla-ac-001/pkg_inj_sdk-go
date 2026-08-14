@@ -36,69 +36,18 @@ func IsIBCDenom(denom string) bool {
 	return strings.HasPrefix(denom, "ibc/")
 }
 
-type SpotLimitOrderDelta struct {
-	Order        *SpotLimitOrder
-	FillQuantity math.LegacyDec
-}
-
-type DerivativeLimitOrderDelta struct {
-	Order          *DerivativeLimitOrder
-	FillQuantity   math.LegacyDec
-	CancelQuantity math.LegacyDec
-}
-
-type DerivativeMarketOrderDelta struct {
-	Order        *DerivativeMarketOrder
-	FillQuantity math.LegacyDec
-}
-
-func (d *DerivativeMarketOrderDelta) UnfilledQuantity() math.LegacyDec {
-	return d.Order.OrderInfo.Quantity.Sub(d.FillQuantity)
-}
-
-func (d *DerivativeLimitOrderDelta) IsBuy() bool {
-	return d.Order.IsBuy()
-}
-
-func (d *DerivativeLimitOrderDelta) SubaccountID() common.Hash {
-	return d.Order.SubaccountID()
-}
-
-func (d *DerivativeLimitOrderDelta) Price() math.LegacyDec {
-	return d.Order.Price()
-}
-
-func (d *DerivativeLimitOrderDelta) FillableQuantity() math.LegacyDec {
-	return d.Order.Fillable.Sub(d.CancelQuantity)
-}
-
-func (d *DerivativeLimitOrderDelta) OrderHash() common.Hash {
-	return d.Order.Hash()
-}
-
-func (d *DerivativeLimitOrderDelta) Cid() string {
-	return d.Order.Cid()
-}
-
 var AuctionSubaccountID = common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
 var ZeroSubaccountID = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000")
 
 // inj1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe2hm49
 var TempRewardsSenderAddress = sdk.AccAddress(common.HexToAddress(ZeroSubaccountID.Hex()).Bytes())
 
-// inj1qqq3zyg3zyg3zyg3zyg3zyg3zyg3zyg3c9gg96
-var AuctionFeesAddress = sdk.AccAddress(common.HexToAddress(AuctionSubaccountID.Hex()).Bytes())
+// ExchangeAuctionFeesAddress is the bank address (inj1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3t5qxqh) used for auction fees from the exchange module.
+// Kept for backward compatibility with external senders (e.g. smart contracts) that already send funds here.
+// New code should use auctiontypes.AuctionFeesSubaccountAddress.
+var ExchangeAuctionFeesAddress = sdk.AccAddress(common.HexToAddress(AuctionSubaccountID.Hex()).Bytes())
 
 var hexRegex = regexp.MustCompile("^(0x)?[0-9a-fA-F]+$")
-
-func StringInSlice(a string, list *[]string) bool {
-	for _, b := range *list {
-		if b == a {
-			return true
-		}
-	}
-	return false
-}
 
 func IsDefaultSubaccountID(subaccountID common.Hash) bool {
 	// empty 12 bytes
@@ -181,14 +130,6 @@ func BreachesMinimumTickSize(value, minTickSize math.LegacyDec) bool {
 	// is breaching when value % minTickSize != 0
 	residue := new(big.Int).Mod(value.BigInt(), minTickSize.BigInt())
 	return !bytes.Equal(residue.Bytes(), big.NewInt(0).Bytes())
-}
-
-func (s *Subaccount) GetSubaccountID() (*common.Hash, error) {
-	trader, err := sdk.AccAddressFromBech32(s.Trader)
-	if err != nil {
-		return nil, err
-	}
-	return SdkAddressWithNonceToSubaccountID(trader, s.SubaccountNonce)
 }
 
 type Account [20]byte
@@ -302,11 +243,49 @@ func EthAddressToSubaccountID(addr common.Address) common.Hash {
 	return common.BytesToHash(common.RightPadBytes(addr.Bytes(), 32))
 }
 
-func DecToDecBytes(dec math.LegacyDec) []byte {
+// SignedDecToSignedDecBytes encodes a Dec to a signed byte slice
+func SignedDecToSignedDecBytes(dec math.LegacyDec) []byte {
+	if dec.IsNil() || dec.IsZero() {
+		return []byte{}
+	}
+
+	sign := byte(0)
+
+	// use sign of 1 for negative numbers
+	if dec.BigInt().Sign() < 0 {
+		sign = 1
+	}
+
+	return append([]byte{sign}, dec.BigInt().Bytes()...)
+}
+
+// SignedDecBytesToDec decodes a signed byte slice back to a Dec.
+func SignedDecBytesToDec(data []byte) math.LegacyDec {
+	if len(data) == 0 {
+		return math.LegacyZeroDec()
+	}
+
+	sign := data[0]
+	magnitude := data[1:]
+	i := new(big.Int).SetBytes(magnitude)
+	if sign == 1 {
+		i = i.Neg(i)
+	}
+
+	dec := math.LegacyNewDecFromBigIntWithPrec(i, math.LegacyPrecision)
+	if dec.IsNil() {
+		return math.LegacyZeroDec()
+	}
+	return dec
+}
+
+// UnsignedDecToUnsignedDecBytes encodes an unsigned Dec to an unsigned byte slice
+func UnsignedDecToUnsignedDecBytes(dec math.LegacyDec) []byte {
 	return dec.BigInt().Bytes()
 }
 
-func DecBytesToDec(bz []byte) math.LegacyDec {
+// UnsignedDecBytesToDec decodes an unsigned byte slice back to a Dec.
+func UnsignedDecBytesToDec(bz []byte) math.LegacyDec {
 	dec := math.LegacyNewDecFromBigIntWithPrec(new(big.Int).SetBytes(bz), math.LegacyPrecision)
 	if dec.IsNil() {
 		return math.LegacyZeroDec()
@@ -351,23 +330,6 @@ func HasDuplicatesCoin(slice []sdk.Coin) bool {
 			return true
 		}
 		seen[item.Denom] = struct{}{}
-	}
-	return false
-}
-
-func HasDuplicatesOrder(slice []*OrderData) bool {
-	seenHashes := make(map[string]struct{})
-	seenCids := make(map[string]struct{})
-	for _, item := range slice {
-		hash, cid := item.GetOrderHash(), item.GetCid()
-		_, hashExists := seenHashes[hash]
-		_, cidExists := seenCids[cid]
-
-		if (hash != "" && hashExists) || (cid != "" && cidExists) {
-			return true
-		}
-		seenHashes[hash] = struct{}{}
-		seenCids[cid] = struct{}{}
 	}
 	return false
 }

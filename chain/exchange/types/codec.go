@@ -15,6 +15,10 @@ import (
 // RegisterLegacyAminoCodec registers the necessary x/exchange interfaces and concrete types
 // on the provided LegacyAmino codec. These types are used for Amino JSON serialization.
 func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
+	// Register oneof interfaces
+	cdc.RegisterInterface((*isOpenNotionalCap_Cap)(nil), nil)
+	cdc.RegisterInterface((*isFullDerivativeMarket_Info)(nil), nil)
+
 	cdc.RegisterConcrete(&MsgDeposit{}, "exchange/MsgDeposit", nil)
 	cdc.RegisterConcrete(&MsgWithdraw{}, "exchange/MsgWithdraw", nil)
 	cdc.RegisterConcrete(&MsgInstantSpotMarketLaunch{}, "exchange/MsgInstantSpotMarketLaunch", nil)
@@ -34,7 +38,11 @@ func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&MsgSubaccountTransfer{}, "exchange/MsgSubaccountTransfer", nil)
 	cdc.RegisterConcrete(&MsgExternalTransfer{}, "exchange/MsgExternalTransfer", nil)
 	cdc.RegisterConcrete(&MsgIncreasePositionMargin{}, "exchange/MsgIncreasePositionMargin", nil)
+	cdc.RegisterConcrete(&MsgDecreasePositionMargin{}, "exchange/MsgDecreasePositionMargin", nil)
 	cdc.RegisterConcrete(&MsgLiquidatePosition{}, "exchange/MsgLiquidatePosition", nil)
+	cdc.RegisterConcrete(&MsgEmergencySettleMarket{}, "exchange/MsgEmergencySettleMarket", nil)
+	cdc.RegisterConcrete(&MsgAuthorizeStakeGrants{}, "exchange/MsgAuthorizeStakeGrants", nil)
+	cdc.RegisterConcrete(&MsgActivateStakeGrant{}, "exchange/MsgActivateStakeGrant", nil)
 	cdc.RegisterConcrete(&MsgBatchUpdateOrders{}, "exchange/MsgBatchUpdateOrders", nil)
 	cdc.RegisterConcrete(&MsgPrivilegedExecuteContract{}, "exchange/MsgPrivilegedExecuteContract", nil)
 	cdc.RegisterConcrete(&MsgRewardsOptOut{}, "exchange/MsgRewardsOptOut", nil)
@@ -46,6 +54,7 @@ func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&MsgUpdateParams{}, "exchange/MsgUpdateParams", nil)
 	cdc.RegisterConcrete(&MsgUpdateSpotMarket{}, "exchange/MsgUpdateSpotMarket", nil)
 	cdc.RegisterConcrete(&MsgUpdateDerivativeMarket{}, "exchange/MsgUpdateDerivativeMarket", nil)
+	cdc.RegisterConcrete(&MsgBatchExchangeModification{}, "exchange/MsgBatchExchangeModification", nil)
 
 	cdc.RegisterConcrete(&ExchangeEnableProposal{}, "exchange/ExchangeEnableProposal", nil)
 	cdc.RegisterConcrete(&BatchExchangeModificationProposal{}, "exchange/BatchExchangeModificationProposal", nil)
@@ -64,6 +73,7 @@ func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&BinaryOptionsMarketParamUpdateProposal{}, "exchange/BinaryOptionsMarketParamUpdateProposal", nil)
 	cdc.RegisterConcrete(&BinaryOptionsMarketLaunchProposal{}, "exchange/BinaryOptionsMarketLaunchProposal", nil)
 	cdc.RegisterConcrete(&AtomicMarketOrderFeeMultiplierScheduleProposal{}, "exchange/AtomicMarketOrderFeeMultiplierScheduleProposal", nil)
+	cdc.RegisterConcrete(&MsgReclaimLockedFunds{}, "exchange/MsgReclaimLockedFunds", nil)
 
 	cdc.RegisterConcrete(&CreateSpotLimitOrderAuthz{}, "exchange/CreateSpotLimitOrderAuthz", nil)
 	cdc.RegisterConcrete(&CreateSpotMarketOrderAuthz{}, "exchange/CreateSpotMarketOrderAuthz", nil)
@@ -78,6 +88,14 @@ func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&BatchUpdateOrdersAuthz{}, "exchange/BatchUpdateOrdersAuthz", nil)
 
 	cdc.RegisterConcrete(&Params{}, "exchange/Params", nil)
+
+	// Register oneof implementations for OpenNotionalCap
+	cdc.RegisterConcrete(&OpenNotionalCap_Uncapped{}, "exchange/OpenNotionalCapUncapped", nil)
+	cdc.RegisterConcrete(&OpenNotionalCap_Capped{}, "exchange/OpenNotionalCapCapped", nil)
+
+	// Register oneof implementations for FullDerivativeMarket
+	cdc.RegisterConcrete(&FullDerivativeMarket_PerpetualInfo{}, "exchange/FullDerivativeMarketPerpetualInfo", nil)
+	cdc.RegisterConcrete(&FullDerivativeMarket_FuturesInfo{}, "exchange/FullDerivativeMarketFuturesInfo", nil)
 }
 
 func RegisterInterfaces(registry types.InterfaceRegistry) {
@@ -101,7 +119,11 @@ func RegisterInterfaces(registry types.InterfaceRegistry) {
 		&MsgSubaccountTransfer{},
 		&MsgExternalTransfer{},
 		&MsgIncreasePositionMargin{},
+		&MsgDecreasePositionMargin{},
 		&MsgLiquidatePosition{},
+		&MsgEmergencySettleMarket{},
+		&MsgAuthorizeStakeGrants{},
+		&MsgActivateStakeGrant{},
 		&MsgBatchUpdateOrders{},
 		&MsgPrivilegedExecuteContract{},
 		&MsgRewardsOptOut{},
@@ -113,6 +135,8 @@ func RegisterInterfaces(registry types.InterfaceRegistry) {
 		&MsgUpdateParams{},
 		&MsgUpdateSpotMarket{},
 		&MsgUpdateDerivativeMarket{},
+		&MsgBatchExchangeModification{},
+		&MsgReclaimLockedFunds{},
 	)
 
 	registry.RegisterImplementations(
@@ -147,6 +171,7 @@ func RegisterInterfaces(registry types.InterfaceRegistry) {
 		&BinaryOptionsMarketParamUpdateProposal{},
 		&BinaryOptionsMarketLaunchProposal{},
 		&AtomicMarketOrderFeeMultiplierScheduleProposal{},
+		&DenomMinNotionalProposal{},
 	)
 
 	registry.RegisterImplementations(
@@ -165,6 +190,8 @@ func RegisterInterfaces(registry types.InterfaceRegistry) {
 		&BatchCancelDerivativeOrdersAuthz{},
 		// common spot, derivative authz
 		&BatchUpdateOrdersAuthz{},
+		// generic exchange authz
+		&GenericExchangeAuthorization{},
 	)
 
 	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/InjectiveLabs/sdk-go/client"
 	"github.com/InjectiveLabs/sdk-go/client/common"
+	"github.com/joho/godotenv"
 
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"
 
@@ -15,9 +16,10 @@ import (
 )
 
 func main() {
+	_ = godotenv.Load()
 	// network := common.LoadNetwork("mainnet", "k8s")
 	network := common.LoadNetwork("mainnet", "lb")
-	tmRPC, err := rpchttp.New(network.TmEndpoint, "/websocket")
+	tmRPC, err := rpchttp.New(network.TmEndpoint)
 
 	if err != nil {
 		panic(err)
@@ -29,7 +31,7 @@ func main() {
 		"file",
 		"inj-user",
 		"12345678",
-		"5d386fbdbf11f1141010f81a46b40f94887367562bd33b452bbaa6ce1cd1381e", // keyring will be used if pk not provided
+		os.Getenv("INJECTIVE_PRIVATE_KEY"), // keyring will be used if pk not provided
 		false,
 	)
 
@@ -49,7 +51,7 @@ func main() {
 
 	clientCtx = clientCtx.WithNodeURI(network.TmEndpoint).WithClient(tmRPC)
 
-	chainClient, err := chainclient.NewChainClient(
+	chainClient, err := chainclient.NewChainClientV2(
 		clientCtx,
 		network,
 		common.OptionGasPrices(client.DefaultGasPriceWithDenom),

@@ -56,6 +56,20 @@ service Query {
         "/injective/oracle/v1beta1/pyth_price_states";
   }
 
+  // Retrieves the state for all pyth pro price feeds
+  rpc PythProPriceStates(QueryPythProPriceStatesRequest)
+      returns (QueryPythProPriceStatesResponse) {
+    option (google.api.http).get =
+        "/injective/oracle/v1beta1/pyth_pro_price_states";
+  }
+
+  // Retrieves the state for all SEDA Fast price feeds
+  rpc SedaFastPriceStates(QuerySedaFastPriceStatesRequest)
+      returns (QuerySedaFastPriceStatesResponse) {
+    option (google.api.http).get =
+        "/injective/oracle/v1beta1/seda_fast_price_states";
+  }
+
   // Retrieves the state for all stork price feeds
   rpc StorkPriceStates(QueryStorkPriceStatesRequest)
       returns (QueryStorkPriceStatesResponse) {
@@ -74,6 +88,14 @@ service Query {
       returns (QueryProviderPriceStateResponse) {
     option (google.api.http).get =
         "/injective/oracle/v1beta1/provider_price_state/{provider}/{symbol}";
+  }
+
+  // Retrieves the state for all Chainlink Data Streams price feeds
+  rpc ChainlinkDataStreamsPriceStates(
+      QueryChainlinkDataStreamsPriceStatesRequest)
+      returns (QueryChainlinkDataStreamsPriceStatesResponse) {
+    option (google.api.http).get =
+        "/injective/oracle/v1beta1/chainlink_data_stream_price_states";
   }
 
   // Retrieves the entire oracle module's state
@@ -186,6 +208,26 @@ message QueryPythPriceStatesResponse {
   repeated PythPriceState price_states = 1;
 }
 
+// QueryPythProPriceStatesRequest is the request type for the
+// Query/PythProPriceStates RPC method.
+message QueryPythProPriceStatesRequest {}
+
+// QueryPythProPriceStatesResponse is the response type for the
+// Query/PythProPriceStates RPC method.
+message QueryPythProPriceStatesResponse {
+  repeated PythProPriceState price_states = 1;
+}
+
+// QuerySedaFastPriceStatesRequest is the request type for the
+// Query/SedaFastPriceStates RPC method.
+message QuerySedaFastPriceStatesRequest {}
+
+// QuerySedaFastPriceStatesResponse is the response type for the
+// Query/SedaFastPriceStates RPC method.
+message QuerySedaFastPriceStatesResponse {
+  repeated SedaFastPriceState price_states = 1;
+}
+
 // QueryStorkPriceStatesRequest is the request type for the
 // Query/StorkPriceStates RPC method.
 message QueryStorkPriceStatesRequest {}
@@ -214,6 +256,16 @@ message QueryProviderPriceStateRequest {
 // QueryProviderPriceStatesResponse is the response type for the
 // Query/ProviderPriceStates RPC method.
 message QueryProviderPriceStateResponse { PriceState price_state = 1; }
+
+// QueryChainlinkDataStreamsPriceStatesRequest is the request type for the
+// Query/ChainlinkDataStreamsPriceStates RPC method.
+message QueryChainlinkDataStreamsPriceStatesRequest {}
+
+// QueryChainlinkDataStreamsPriceStatesResponse is the response type for the
+// Query/ChainlinkDataStreamsPriceStates RPC method.
+message QueryChainlinkDataStreamsPriceStatesResponse {
+  repeated ChainlinkDataStreamsPriceState price_states = 1;
+}
 
 // QueryModuleStateRequest is the request type for the Query/OracleModuleState
 // RPC method.

@@ -16,6 +16,31 @@ enum AtomicMarketOrderAccessLevel {
   Everyone = 3;
 }
 
+message OpenNotionalCap {
+  option (amino.name) = "injective.exchange.v1beta1.OpenNotionalCap";
+
+  oneof cap {
+    OpenNotionalCapUncapped uncapped = 1
+        [ (amino.oneof_name) =
+              "injective.exchange.v1beta1.OpenNotionalCapUncapped" ];
+    OpenNotionalCapCapped capped = 2
+        [ (amino.oneof_name) =
+              "injective.exchange.v1beta1.OpenNotionalCapCapped" ];
+  }
+}
+
+message OpenNotionalCapUncapped {
+  option (amino.name) = "injective.exchange.v1beta1.OpenNotionalCapUncapped";
+}
+
+message OpenNotionalCapCapped {
+  option (amino.name) = "injective.exchange.v1beta1.OpenNotionalCapCapped";
+  string value = 1 [
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
 message Params {
   option (gogoproto.equal) = true;
   option (amino.name) = "exchange/Params";
@@ -169,11 +194,18 @@ message Params {
   // List of addresses that are allowed to perform exchange admin operations
   repeated string exchange_admins = 27;
 
-  // inj_auction_max_cap defines the maximum cap for INJ sent to auction
+  // inj_auction_max_cap defines the maximum cap for INJ sent to auction.
+  // Deprecated: the cap is now driven by the auction module's InjBasketMaxCap;
+  // this field is ignored.
   string inj_auction_max_cap = 28 [
     (gogoproto.customtype) = "cosmossdk.io/math.Int",
-    (gogoproto.nullable) = false
+    (gogoproto.nullable) = false,
+    deprecated = true
   ];
+
+  // fixed_gas_enabled indicates if msg server will consume fixed gas amount for
+  // certain msg types
+  bool fixed_gas_enabled = 29;
 }
 
 enum MarketStatus {
@@ -247,19 +279,19 @@ message DerivativeMarket {
   // Status of the market
   MarketStatus status = 14;
   // min_price_tick_size defines the minimum tick size that the price and margin
-  // required for orders in the market
+  // required for orders in the market (in chain format)
   string min_price_tick_size = 15 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
   // min_quantity_tick_size defines the minimum tick size of the quantity
-  // required for orders in the market
+  // required for orders in the market (in chain format)
   string min_quantity_tick_size = 16 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
   // min_notional defines the minimum notional (in quote asset) required for
-  // orders in the market
+  // orders in the market (in chain format)
   string min_notional = 17 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
@@ -269,7 +301,19 @@ message DerivativeMarket {
   string admin = 18;
   // level of admin permissions
   uint32 admin_permissions = 19;
+  // quote token decimals
+  uint32 quote_decimals = 20;
+
+  // reduce_margin_ratio defines the ratio of the margin that is reduced
+  string reduce_margin_ratio = 21 [
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+
+  // open_notional_cap defines the maximum open notional for the market
+  OpenNotionalCap open_notional_cap = 22 [ (gogoproto.nullable) = false ];
 }
+
 // An object describing a binary options market in Injective Protocol.
 message BinaryOptionsMarket {
   option (gogoproto.goproto_getters) = false;
@@ -337,6 +381,8 @@ message BinaryOptionsMarket {
   ];
   // level of admin permissions
   uint32 admin_permissions = 19;
+  // quote token decimals
+  uint32 quote_decimals = 20;
 }
 
 message ExpiryFuturesMarketInfo {
@@ -349,13 +395,13 @@ message ExpiryFuturesMarketInfo {
   // calculation window
   int64 twap_start_timestamp = 3;
   // expiration_twap_start_price_cumulative defines the cumulative price for the
-  // start of the TWAP window
+  // start of the TWAP window (in chain format)
   string expiration_twap_start_price_cumulative = 4 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
   // settlement_price defines the settlement price for a time expiry futures
-  // market.
+  // market (in chain format)
   string settlement_price = 5 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
@@ -390,12 +436,14 @@ message PerpetualMarketFunding {
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
-  // cumulative_price defines the cumulative price for the current hour up to
-  // the last timestamp
+  // cumulative_price defines the running time-integral of the perp premium
+  // ((VWAP - mark_price) / mark_price) i.e., sum(premium * seconds)
+  // used to compute the interval’s average premium for funding
   string cumulative_price = 2 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
+  // the last timestamp in seconds
   int64 last_timestamp = 3;
 }
 
@@ -412,17 +460,17 @@ message DerivativeMarketSettlementInfo {
 message NextFundingTimestamp { int64 next_timestamp = 1; }
 
 message MidPriceAndTOB {
-  // mid price of the market
+  // mid price of the market (in chain format)
   string mid_price = 1 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = true
   ];
-  // best buy price of the market
+  // best buy price of the market (in chain format)
   string best_buy_price = 2 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = true
   ];
-  // best sell price of the market
+  // best sell price of the market (in chain format)
   string best_sell_price = 3 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = true
@@ -459,19 +507,19 @@ message SpotMarket {
   // Status of the market
   MarketStatus status = 8;
   // min_price_tick_size defines the minimum tick size that the price required
-  // for orders in the market
+  // for orders in the market (in chain format)
   string min_price_tick_size = 9 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
   // min_quantity_tick_size defines the minimum tick size of the quantity
-  // required for orders in the market
+  // required for orders in the market (in chain format)
   string min_quantity_tick_size = 10 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
   // min_notional defines the minimum notional (in quote asset) required for
-  // orders in the market
+  // orders in the market (in chain format)
   string min_notional = 11 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
@@ -481,6 +529,10 @@ message SpotMarket {
   string admin = 12;
   // level of admin permissions
   uint32 admin_permissions = 13;
+  // base token decimals
+  uint32 base_decimals = 14;
+  // quote token decimals
+  uint32 quote_decimals = 15;
 }
 
 // A subaccount's deposit for a given base currency
@@ -600,22 +652,25 @@ message DerivativeOrder {
 }
 
 message SubaccountOrderbookMetadata {
+  // The number of vanilla limit orders
   uint32 vanilla_limit_order_count = 1;
+  // The number of reduce-only limit orders
   uint32 reduce_only_limit_order_count = 2;
-  // AggregateReduceOnlyQuantity is the aggregate fillable quantity of the
-  // subaccount's reduce-only limit orders in the given direction.
+  // The aggregate quantity of the subaccount's reduce-only limit orders (in
+  // chain format)
   string aggregate_reduce_only_quantity = 3 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
-  // AggregateVanillaQuantity is the aggregate fillable quantity of the
-  // subaccount's vanilla limit orders in the given direction.
+  // The aggregate quantity of the subaccount's vanilla limit orders (in chain
+  // format)
   string aggregate_vanilla_quantity = 4 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
-
+  // The number of vanilla conditional orders
   uint32 vanilla_conditional_order_count = 5;
+  // The number of reduce-only conditional orders
   uint32 reduce_only_conditional_order_count = 6;
 }
 
@@ -686,19 +741,24 @@ message DerivativeMarketOrder {
 }
 
 message Position {
+  // True if the position is long. False if the position is short.
   bool isLong = 1;
+  // The quantity of the position (in chain format)
   string quantity = 2 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
+  // The entry price of the position (in chain format)
   string entry_price = 3 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
+  // The margin of the position (in chain format)
   string margin = 4 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
+  // The cumulative funding
   string cumulative_funding_entry = 5 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
@@ -729,6 +789,12 @@ message TradeLog {
   bytes order_hash = 5;
   bytes fee_recipient_address = 6 [ (gogoproto.nullable) = true ];
   string cid = 7;
+  // the fee-exclusive quote amount actually settled for the trade (in chain
+  // format)
+  string notional = 8 [
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
 }
 
 message PositionDelta {
@@ -775,6 +841,8 @@ enum ExecutionType {
   LimitMatchNewOrder = 4;
   MarketLiquidation = 5;
   ExpiryMarketSettlement = 6;
+  OffsettingPosition = 7;
+  Synthetic = 8;
 }
 
 message SubaccountPosition {
@@ -834,18 +902,22 @@ message TradingRewardCampaignInfo {
 }
 
 message FeeDiscountTierInfo {
+  // the maker discount rate
   string maker_discount_rate = 1 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
+  // the taker discount rate
   string taker_discount_rate = 2 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
+  // the staked amount required to qualify for the discount (in chain format)
   string staked_amount = 3 [
     (gogoproto.customtype) = "cosmossdk.io/math.Int",
     (gogoproto.nullable) = false
   ];
+  // the volume required to qualify for the discount (in chain format)
   string volume = 4 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
@@ -897,13 +969,16 @@ message TradeRecords {
 message SubaccountIDs { repeated bytes subaccount_ids = 1; }
 
 message TradeRecord {
+  // the timestamp of the trade
   int64 timestamp = 1;
 
+  // the price of the trade (in chain format)
   string price = 2 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
 
+  // the quantity of the trade (in chain format)
   string quantity = 3 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
@@ -926,12 +1001,12 @@ enum OrderMask {
 }
 
 message Level {
-  // price
+  // price (in chain format)
   string p = 1 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
-  // quantity
+  // quantity (in chain format)
   string q = 2 [
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
@@ -939,7 +1014,9 @@ message Level {
 }
 
 message AggregateSubaccountVolumeRecord {
+  // the subaccount ID
   string subaccount_id = 1;
+  // the subaccount volumes for each market
   repeated MarketVolume market_volumes = 2;
 }
 
@@ -981,4 +1058,14 @@ message EffectiveGrant {
     (gogoproto.nullable) = false
   ];
   bool is_valid = 3;
+}
+
+message DenomMinNotional {
+  // the denom of the token
+  string denom = 1;
+  // the minimum notional value for the token (in chain format)
+  string min_notional = 2 [
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
 }

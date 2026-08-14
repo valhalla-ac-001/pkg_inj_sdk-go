@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"cosmossdk.io/math"
@@ -30,12 +31,17 @@ const (
 	// BinaryOptionsMarketInstantListingFee is 100 INJ
 	BinaryOptionsMarketInstantListingFee int64 = 100
 
-	// MaxDerivativeOrderSideCount is 20
-	MaxDerivativeOrderSideCount uint32 = 20
-
 	MaxOracleScaleFactor uint32 = 18
 
+	MaxDecimals uint32 = 18
+
 	MaxTickerLength int = 40
+
+	MaxOracleSymbolLength int = 256
+
+	MaxOracleProviderLength int = 256
+
+	MaxMarketLaunchDenomLength int = 256
 
 	// MaxHistoricalTradeRecordAge is the maximum age of trade records to track.
 	MaxHistoricalTradeRecordAge = 60 * 5
@@ -45,12 +51,16 @@ const (
 
 	// MaxGranterDelegations is the maximum number of delegations that are checked for stake granter
 	MaxGranterDelegations = 25
+
+	// MaxTickSizeDecimalPlaces defines the maximum number of decimal places allowed for tick size
+	// The real max for LegacyDec is 18, but we allow 15 to ensure that we are absolutely safe of any rounding issues
+	MaxTickSizeDecimalPlaces = 15
+
+	// MaxWhiteKnightLiquidators defines the maximum number of white knight liquidators.
+	MaxWhiteKnightLiquidators = 1024
 )
 
 var MaxBinaryOptionsOrderPrice = math.LegacyOneDec()
-
-// would be $0.000001 for USDT
-var MinDerivativeOrderPrice = math.LegacyOneDec()
 
 // MaxOrderPrice equals 10^32
 var MaxOrderPrice = math.LegacyMustNewDecFromStr("100000000000000000000000000000000")
@@ -64,7 +74,7 @@ var MaxTokenInt, _ = math.NewIntFromString("100000000000000000000000000")
 var MaxOrderQuantity = math.LegacyMustNewDecFromStr("100000000000000000000000000000000")
 var MaxFeeMultiplier = math.LegacyMustNewDecFromStr("100")
 
-var minMarginRatio = math.LegacyNewDecWithPrec(5, 3)
+var MinMarginRatio = math.LegacyNewDecWithPrec(5, 3)
 
 // Parameter keys
 var (
@@ -95,135 +105,62 @@ var (
 	KeyPostOnlyModeHeightThreshold                 = []byte("PostOnlyModeHeightThreshold")
 )
 
-// ParamKeyTable returns the parameter key table.
-func ParamKeyTable() paramtypes.KeyTable {
-	return paramtypes.NewKeyTable().RegisterParamSet(&Params{})
-}
-
-// NewParams creates a new Params instance
-func NewParams(
-	spotMarketInstantListingFee sdk.Coin,
-	derivativeMarketInstantListingFee sdk.Coin,
-	defaultSpotMakerFee math.LegacyDec,
-	defaultSpotTakerFee math.LegacyDec,
-	defaultDerivativeMakerFee math.LegacyDec,
-	defaultDerivativeTakerFee math.LegacyDec,
-	defaultInitialMarginRatio math.LegacyDec,
-	defaultMaintenanceMarginRatio math.LegacyDec,
-	defaultFundingInterval int64,
-	fundingMultiple int64,
-	relayerFeeShare math.LegacyDec,
-	defaultHourlyFundingRateCap math.LegacyDec,
-	defaultHourlyInterestRate math.LegacyDec,
-	maxDerivativeSideOrderCount uint32,
-	injRewardStakedRequirementThreshold math.Int,
-	tradingRewardsVestingDuration int64,
-	liquidatorRewardShareRate math.LegacyDec,
-	binaryOptionsMarketInstantListingFee sdk.Coin,
-	atomicMarketOrderAccessLevel AtomicMarketOrderAccessLevel,
-	spotAtomicMarketOrderFeeMultiplier math.LegacyDec,
-	derivativeAtomicMarketOrderFeeMultiplier math.LegacyDec,
-	binaryOptionsAtomicMarketOrderFeeMultiplier math.LegacyDec,
-	minimalProtocolFeeRate math.LegacyDec,
-	postOnlyModeHeightThreshold int64,
-) Params {
-	return Params{
-		SpotMarketInstantListingFee:                 spotMarketInstantListingFee,
-		DerivativeMarketInstantListingFee:           derivativeMarketInstantListingFee,
-		DefaultSpotMakerFeeRate:                     defaultSpotMakerFee,
-		DefaultSpotTakerFeeRate:                     defaultSpotTakerFee,
-		DefaultDerivativeMakerFeeRate:               defaultDerivativeMakerFee,
-		DefaultDerivativeTakerFeeRate:               defaultDerivativeTakerFee,
-		DefaultInitialMarginRatio:                   defaultInitialMarginRatio,
-		DefaultMaintenanceMarginRatio:               defaultMaintenanceMarginRatio,
-		DefaultFundingInterval:                      defaultFundingInterval,
-		FundingMultiple:                             fundingMultiple,
-		RelayerFeeShareRate:                         relayerFeeShare,
-		DefaultHourlyFundingRateCap:                 defaultHourlyFundingRateCap,
-		DefaultHourlyInterestRate:                   defaultHourlyInterestRate,
-		MaxDerivativeOrderSideCount:                 maxDerivativeSideOrderCount,
-		InjRewardStakedRequirementThreshold:         injRewardStakedRequirementThreshold,
-		TradingRewardsVestingDuration:               tradingRewardsVestingDuration,
-		LiquidatorRewardShareRate:                   liquidatorRewardShareRate,
-		BinaryOptionsMarketInstantListingFee:        binaryOptionsMarketInstantListingFee,
-		AtomicMarketOrderAccessLevel:                atomicMarketOrderAccessLevel,
-		SpotAtomicMarketOrderFeeMultiplier:          spotAtomicMarketOrderFeeMultiplier,
-		DerivativeAtomicMarketOrderFeeMultiplier:    derivativeAtomicMarketOrderFeeMultiplier,
-		BinaryOptionsAtomicMarketOrderFeeMultiplier: binaryOptionsAtomicMarketOrderFeeMultiplier,
-		MinimalProtocolFeeRate:                      minimalProtocolFeeRate,
-		IsInstantDerivativeMarketLaunchEnabled:      false,
-		PostOnlyModeHeightThreshold:                 postOnlyModeHeightThreshold,
-	}
-}
-
 // ParamSetPairs returns the parameter set pairs.
 func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 	return paramtypes.ParamSetPairs{
-		paramtypes.NewParamSetPair(KeySpotMarketInstantListingFee, &p.SpotMarketInstantListingFee, validateSpotMarketInstantListingFee),
-		paramtypes.NewParamSetPair(KeyDerivativeMarketInstantListingFee, &p.DerivativeMarketInstantListingFee, validateDerivativeMarketInstantListingFee),
+		paramtypes.NewParamSetPair(KeySpotMarketInstantListingFee, &p.SpotMarketInstantListingFee, ValidateSpotMarketInstantListingFee),
+		paramtypes.NewParamSetPair(
+			KeyDerivativeMarketInstantListingFee, &p.DerivativeMarketInstantListingFee, ValidateDerivativeMarketInstantListingFee,
+		),
 		paramtypes.NewParamSetPair(KeyDefaultSpotMakerFeeRate, &p.DefaultSpotMakerFeeRate, ValidateMakerFee),
 		paramtypes.NewParamSetPair(KeyDefaultSpotTakerFeeRate, &p.DefaultSpotTakerFeeRate, ValidateFee),
 		paramtypes.NewParamSetPair(KeyDefaultDerivativeMakerFeeRate, &p.DefaultDerivativeMakerFeeRate, ValidateMakerFee),
 		paramtypes.NewParamSetPair(KeyDefaultDerivativeTakerFeeRate, &p.DefaultDerivativeTakerFeeRate, ValidateFee),
 		paramtypes.NewParamSetPair(KeyDefaultInitialMarginRatio, &p.DefaultInitialMarginRatio, ValidateMarginRatio),
 		paramtypes.NewParamSetPair(KeyDefaultMaintenanceMarginRatio, &p.DefaultMaintenanceMarginRatio, ValidateMarginRatio),
-		paramtypes.NewParamSetPair(KeyDefaultFundingInterval, &p.DefaultFundingInterval, validateFundingInterval),
-		paramtypes.NewParamSetPair(KeyFundingMultiple, &p.FundingMultiple, validateFundingMultiple),
+		paramtypes.NewParamSetPair(KeyDefaultFundingInterval, &p.DefaultFundingInterval, ValidateFundingInterval),
+		paramtypes.NewParamSetPair(KeyFundingMultiple, &p.FundingMultiple, ValidateFundingMultiple),
 		paramtypes.NewParamSetPair(KeyRelayerFeeShareRate, &p.RelayerFeeShareRate, ValidateFee),
 		paramtypes.NewParamSetPair(KeyDefaultHourlyFundingRateCap, &p.DefaultHourlyFundingRateCap, ValidateFee),
 		paramtypes.NewParamSetPair(KeyDefaultHourlyInterestRate, &p.DefaultHourlyInterestRate, ValidateFee),
-		paramtypes.NewParamSetPair(KeyMaxDerivativeOrderSideCount, &p.MaxDerivativeOrderSideCount, validateDerivativeOrderSideCount),
-		paramtypes.NewParamSetPair(KeyInjRewardStakedRequirementThreshold, &p.InjRewardStakedRequirementThreshold, validateInjRewardStakedRequirementThreshold),
-		paramtypes.NewParamSetPair(KeyTradingRewardsVestingDuration, &p.TradingRewardsVestingDuration, validateTradingRewardsVestingDuration),
-		paramtypes.NewParamSetPair(KeyLiquidatorRewardShareRate, &p.LiquidatorRewardShareRate, validateLiquidatorRewardShareRate),
-		paramtypes.NewParamSetPair(KeyBinaryOptionsMarketInstantListingFee, &p.BinaryOptionsMarketInstantListingFee, validateBinaryOptionsMarketInstantListingFee),
-		paramtypes.NewParamSetPair(KeyAtomicMarketOrderAccessLevel, &p.AtomicMarketOrderAccessLevel, validateAtomicMarketOrderAccessLevel),
-		paramtypes.NewParamSetPair(KeySpotAtomicMarketOrderFeeMultiplier, &p.SpotAtomicMarketOrderFeeMultiplier, validateAtomicMarketOrderFeeMultiplier),
-		paramtypes.NewParamSetPair(KeyDerivativeAtomicMarketOrderFeeMultiplier, &p.DerivativeAtomicMarketOrderFeeMultiplier, validateAtomicMarketOrderFeeMultiplier),
-		paramtypes.NewParamSetPair(KeyBinaryOptionsAtomicMarketOrderFeeMultiplier, &p.BinaryOptionsAtomicMarketOrderFeeMultiplier, validateAtomicMarketOrderFeeMultiplier),
+		paramtypes.NewParamSetPair(KeyMaxDerivativeOrderSideCount, &p.MaxDerivativeOrderSideCount, ValidateDerivativeOrderSideCount),
+		paramtypes.NewParamSetPair(
+			KeyInjRewardStakedRequirementThreshold, &p.InjRewardStakedRequirementThreshold, ValidateInjRewardStakedRequirementThreshold,
+		),
+		paramtypes.NewParamSetPair(
+			KeyTradingRewardsVestingDuration, &p.TradingRewardsVestingDuration, ValidateTradingRewardsVestingDuration),
+		paramtypes.NewParamSetPair(KeyLiquidatorRewardShareRate, &p.LiquidatorRewardShareRate, ValidateLiquidatorRewardShareRate),
+		paramtypes.NewParamSetPair(
+			KeyBinaryOptionsMarketInstantListingFee, &p.BinaryOptionsMarketInstantListingFee, ValidateBinaryOptionsMarketInstantListingFee,
+		),
+		paramtypes.NewParamSetPair(
+			KeyAtomicMarketOrderAccessLevel, &p.AtomicMarketOrderAccessLevel, ValidateAtomicMarketOrderAccessLevel,
+		),
+		paramtypes.NewParamSetPair(
+			KeySpotAtomicMarketOrderFeeMultiplier, &p.SpotAtomicMarketOrderFeeMultiplier, ValidateAtomicMarketOrderFeeMultiplier,
+		),
+		paramtypes.NewParamSetPair(
+			KeyDerivativeAtomicMarketOrderFeeMultiplier,
+			&p.DerivativeAtomicMarketOrderFeeMultiplier,
+			ValidateAtomicMarketOrderFeeMultiplier,
+		),
+		paramtypes.NewParamSetPair(
+			KeyBinaryOptionsAtomicMarketOrderFeeMultiplier,
+			&p.BinaryOptionsAtomicMarketOrderFeeMultiplier,
+			ValidateAtomicMarketOrderFeeMultiplier,
+		),
 		paramtypes.NewParamSetPair(KeyMinimalProtocolFeeRate, &p.MinimalProtocolFeeRate, ValidateFee),
-		paramtypes.NewParamSetPair(KeyIsInstantDerivativeMarketLaunchEnabled, &p.IsInstantDerivativeMarketLaunchEnabled, validateBool),
-		paramtypes.NewParamSetPair(KeyPostOnlyModeHeightThreshold, &p.PostOnlyModeHeightThreshold, validatePostOnlyModeHeightThreshold),
-	}
-}
-
-// DefaultParams returns a default set of parameters.
-func DefaultParams() Params {
-	return Params{
-		SpotMarketInstantListingFee:                 sdk.NewCoin("inj", math.NewIntWithDecimal(SpotMarketInstantListingFee, 18)),
-		DerivativeMarketInstantListingFee:           sdk.NewCoin("inj", math.NewIntWithDecimal(DerivativeMarketInstantListingFee, 18)),
-		DefaultSpotMakerFeeRate:                     math.LegacyNewDecWithPrec(-1, 4), // default -0.01% maker fees
-		DefaultSpotTakerFeeRate:                     math.LegacyNewDecWithPrec(1, 3),  // default 0.1% taker fees
-		DefaultDerivativeMakerFeeRate:               math.LegacyNewDecWithPrec(-1, 4), // default -0.01% maker fees
-		DefaultDerivativeTakerFeeRate:               math.LegacyNewDecWithPrec(1, 3),  // default 0.1% taker fees
-		DefaultInitialMarginRatio:                   math.LegacyNewDecWithPrec(5, 2),  // default 5% initial margin ratio
-		DefaultMaintenanceMarginRatio:               math.LegacyNewDecWithPrec(2, 2),  // default 2% maintenance margin ratio
-		DefaultFundingInterval:                      DefaultFundingIntervalSeconds,
-		FundingMultiple:                             DefaultFundingMultipleSeconds,
-		RelayerFeeShareRate:                         math.LegacyNewDecWithPrec(40, 2),      // default 40% relayer fee share
-		DefaultHourlyFundingRateCap:                 math.LegacyNewDecWithPrec(625, 6),     // default 0.0625% max hourly funding rate
-		DefaultHourlyInterestRate:                   math.LegacyNewDecWithPrec(416666, 11), // 0.01% daily interest rate = 0.0001 / 24 = 0.00000416666
-		MaxDerivativeOrderSideCount:                 MaxDerivativeOrderSideCount,
-		InjRewardStakedRequirementThreshold:         math.NewIntWithDecimal(100, 18), // 100 INJ
-		TradingRewardsVestingDuration:               604800,                          // 7 days
-		LiquidatorRewardShareRate:                   math.LegacyNewDecWithPrec(5, 2), // 5% liquidator reward
-		BinaryOptionsMarketInstantListingFee:        sdk.NewCoin("inj", math.NewIntWithDecimal(BinaryOptionsMarketInstantListingFee, 18)),
-		AtomicMarketOrderAccessLevel:                AtomicMarketOrderAccessLevel_SmartContractsOnly,
-		SpotAtomicMarketOrderFeeMultiplier:          math.LegacyNewDecWithPrec(25, 1),        // default 2.5 multiplier
-		DerivativeAtomicMarketOrderFeeMultiplier:    math.LegacyNewDecWithPrec(25, 1),        // default 2.5 multiplier
-		BinaryOptionsAtomicMarketOrderFeeMultiplier: math.LegacyNewDecWithPrec(25, 1),        // default 2.5 multiplier
-		MinimalProtocolFeeRate:                      math.LegacyMustNewDecFromStr("0.00005"), // default 0.005% minimal fee rate
-		IsInstantDerivativeMarketLaunchEnabled:      false,
-		PostOnlyModeHeightThreshold:                 0,
+		paramtypes.NewParamSetPair(KeyIsInstantDerivativeMarketLaunchEnabled, &p.IsInstantDerivativeMarketLaunchEnabled, ValidateBool),
+		paramtypes.NewParamSetPair(KeyPostOnlyModeHeightThreshold, &p.PostOnlyModeHeightThreshold, ValidatePostOnlyModeHeightThreshold),
 	}
 }
 
 // Validate performs basic validation on exchange parameters.
 func (p Params) Validate() error {
-	if err := validateSpotMarketInstantListingFee(p.SpotMarketInstantListingFee); err != nil {
+	if err := ValidateSpotMarketInstantListingFee(p.SpotMarketInstantListingFee); err != nil {
 		return fmt.Errorf("spot_market_instant_listing_fee is incorrect: %w", err)
 	}
-	if err := validateDerivativeMarketInstantListingFee(p.DerivativeMarketInstantListingFee); err != nil {
+	if err := ValidateDerivativeMarketInstantListingFee(p.DerivativeMarketInstantListingFee); err != nil {
 		return fmt.Errorf("derivative_market_instant_listing_fee is incorrect: %w", err)
 	}
 	if err := ValidateMakerFee(p.DefaultSpotMakerFeeRate); err != nil {
@@ -244,10 +181,10 @@ func (p Params) Validate() error {
 	if err := ValidateMarginRatio(p.DefaultMaintenanceMarginRatio); err != nil {
 		return fmt.Errorf("default_maintenance_margin_ratio is incorrect: %w", err)
 	}
-	if err := validateFundingInterval(p.DefaultFundingInterval); err != nil {
+	if err := ValidateFundingInterval(p.DefaultFundingInterval); err != nil {
 		return fmt.Errorf("default_funding_interval is incorrect: %w", err)
 	}
-	if err := validateFundingMultiple(p.FundingMultiple); err != nil {
+	if err := ValidateFundingMultiple(p.FundingMultiple); err != nil {
 		return fmt.Errorf("funding_multiple is incorrect: %w", err)
 	}
 	if err := ValidateFee(p.RelayerFeeShareRate); err != nil {
@@ -259,43 +196,56 @@ func (p Params) Validate() error {
 	if err := ValidateFee(p.DefaultHourlyInterestRate); err != nil {
 		return fmt.Errorf("default_hourly_interest_rate is incorrect: %w", err)
 	}
-	if err := validateDerivativeOrderSideCount(p.MaxDerivativeOrderSideCount); err != nil {
+	if err := ValidateDerivativeOrderSideCount(p.MaxDerivativeOrderSideCount); err != nil {
 		return fmt.Errorf("max_derivative_order_side_count is incorrect: %w", err)
 	}
-	if err := validateInjRewardStakedRequirementThreshold(p.InjRewardStakedRequirementThreshold); err != nil {
+	if err := ValidateInjRewardStakedRequirementThreshold(p.InjRewardStakedRequirementThreshold); err != nil {
 		return fmt.Errorf("inj_reward_staked_requirement_threshold is incorrect: %w", err)
 	}
-	if err := validateLiquidatorRewardShareRate(p.LiquidatorRewardShareRate); err != nil {
+	if err := ValidateLiquidatorRewardShareRate(p.LiquidatorRewardShareRate); err != nil {
 		return fmt.Errorf("liquidator_reward_share_rate is incorrect: %w", err)
 	}
-	if err := validateBinaryOptionsMarketInstantListingFee(p.BinaryOptionsMarketInstantListingFee); err != nil {
+	if err := ValidateBinaryOptionsMarketInstantListingFee(p.BinaryOptionsMarketInstantListingFee); err != nil {
 		return fmt.Errorf("binary_options_market_instant_listing_fee is incorrect: %w", err)
 	}
-	if err := validateAtomicMarketOrderAccessLevel(p.AtomicMarketOrderAccessLevel); err != nil {
+	if err := ValidateAtomicMarketOrderAccessLevel(p.AtomicMarketOrderAccessLevel); err != nil {
 		return fmt.Errorf("atomic_market_order_access_level is incorrect: %w", err)
 	}
-	if err := validateAtomicMarketOrderFeeMultiplier(p.SpotAtomicMarketOrderFeeMultiplier); err != nil {
+	if err := ValidateAtomicMarketOrderFeeMultiplier(p.SpotAtomicMarketOrderFeeMultiplier); err != nil {
 		return fmt.Errorf("spot_atomic_market_order_fee_multiplier is incorrect: %w", err)
 	}
-	if err := validateAtomicMarketOrderFeeMultiplier(p.DerivativeAtomicMarketOrderFeeMultiplier); err != nil {
+	if err := ValidateAtomicMarketOrderFeeMultiplier(p.DerivativeAtomicMarketOrderFeeMultiplier); err != nil {
 		return fmt.Errorf("derivative_atomic_market_order_fee_multiplier is incorrect: %w", err)
 	}
-	if err := validateAtomicMarketOrderFeeMultiplier(p.BinaryOptionsAtomicMarketOrderFeeMultiplier); err != nil {
+	if err := ValidateAtomicMarketOrderFeeMultiplier(p.BinaryOptionsAtomicMarketOrderFeeMultiplier); err != nil {
 		return fmt.Errorf("binary_options_atomic_market_order_fee_multiplier is incorrect: %w", err)
 	}
 	if err := ValidateFee(p.MinimalProtocolFeeRate); err != nil {
 		return fmt.Errorf("minimal_protocol_fee_rate is incorrect: %w", err)
 	}
-	if err := validatePostOnlyModeHeightThreshold(p.PostOnlyModeHeightThreshold); err != nil {
+	if err := ValidatePostOnlyModeHeightThreshold(p.PostOnlyModeHeightThreshold); err != nil {
 		return fmt.Errorf("post_only_mode_height_threshold is incorrect: %w", err)
 	}
-	if err := validateAdmins(p.ExchangeAdmins); err != nil {
+	if err := ValidateAdmins(p.ExchangeAdmins); err != nil {
 		return fmt.Errorf("ExchangeAdmins is incorrect: %w", err)
 	}
+
+	if err := ValidateFixedGasFlag(p.FixedGasEnabled); err != nil {
+		return fmt.Errorf("fixed_gas_enabled is incorrect: %w", err)
+	}
+
 	return nil
 }
 
-func validateSpotMarketInstantListingFee(i interface{}) error {
+func ValidateFixedGasFlag(enabled any) error {
+	if _, ok := enabled.(bool); !ok {
+		return fmt.Errorf("invalid parameter type: %T", enabled)
+	}
+
+	return nil
+}
+
+func ValidateSpotMarketInstantListingFee(i any) error {
 	v, ok := i.(sdk.Coin)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -308,7 +258,7 @@ func validateSpotMarketInstantListingFee(i interface{}) error {
 	return nil
 }
 
-func validateDerivativeMarketInstantListingFee(i interface{}) error {
+func ValidateDerivativeMarketInstantListingFee(i any) error {
 	v, ok := i.(sdk.Coin)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -321,7 +271,7 @@ func validateDerivativeMarketInstantListingFee(i interface{}) error {
 	return nil
 }
 
-func validateBinaryOptionsMarketInstantListingFee(i interface{}) error {
+func ValidateBinaryOptionsMarketInstantListingFee(i any) error {
 	v, ok := i.(sdk.Coin)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -334,7 +284,7 @@ func validateBinaryOptionsMarketInstantListingFee(i interface{}) error {
 	return nil
 }
 
-func ValidateFee(i interface{}) error {
+func ValidateFee(i any) error {
 	v, ok := i.(math.LegacyDec)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -354,7 +304,24 @@ func ValidateFee(i interface{}) error {
 	return nil
 }
 
-func ValidateMakerFee(i interface{}) error {
+func ValidateNonNegativeDec(i any) error {
+	v, ok := i.(math.LegacyDec)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	if v.IsNil() {
+		return fmt.Errorf("value cannot be nil: %s", v)
+	}
+
+	if v.IsNegative() {
+		return fmt.Errorf("value cannot be negative: %s", v)
+	}
+
+	return nil
+}
+
+func ValidateMakerFee(i any) error {
 	v, ok := i.(math.LegacyDec)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -375,7 +342,7 @@ func ValidateMakerFee(i interface{}) error {
 	return nil
 }
 
-func ValidateHourlyFundingRateCap(i interface{}) error {
+func ValidateHourlyFundingRateCap(i any) error {
 	v, ok := i.(math.LegacyDec)
 
 	if !ok {
@@ -401,7 +368,7 @@ func ValidateHourlyFundingRateCap(i interface{}) error {
 	return nil
 }
 
-func ValidateHourlyInterestRate(i interface{}) error {
+func ValidateHourlyInterestRate(i any) error {
 	v, ok := i.(math.LegacyDec)
 
 	if !ok {
@@ -423,7 +390,7 @@ func ValidateHourlyInterestRate(i interface{}) error {
 	return nil
 }
 
-func ValidateTickSize(i interface{}) error {
+func ValidateTickSize(i any) error {
 	v, ok := i.(math.LegacyDec)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -445,27 +412,48 @@ func ValidateTickSize(i interface{}) error {
 		return fmt.Errorf("unsupported tick size amount")
 	}
 
-	// 1e18 scaleFactor
-	scaleFactor := math.LegacyNewDec(1000000000000000000)
-	// v can be a decimal (e.g. 1e-18) so we scale by 1e18
+	// Use 10^MaxTickSizeDecimalPlaces as scaleFactor to naturally enforce decimal places limit
+	// Any tick size with more than MaxTickSizeDecimalPlaces decimal places will result in
+	// a scaled value < 1, which cannot be a power of 10
+	scaleFactor := math.LegacyNewDec(10).Power(MaxTickSizeDecimalPlaces)
+	// v can be a decimal (e.g. 1e-15) so we scale by 10^15
 	scaledValue := v.Mul(scaleFactor)
 
-	power := math.LegacyNewDec(1)
-	ten := math.LegacyNewDec(10)
-
-	// determine whether scaledValue is a power of 10
-	for power.LT(scaledValue) {
-		power = power.Mul(ten)
-	}
-
-	if !power.Equal(scaledValue) {
-		return fmt.Errorf("unsupported tick size")
+	if !isPowerOf10(scaledValue) {
+		return errors.New("unsupported tick size")
 	}
 
 	return nil
 }
 
-func ValidateMinNotional(i interface{}) error {
+// isPowerOf10 checks whether the given decimal is a positive power of 10 (including 10^0 = 1).
+func isPowerOf10(v math.LegacyDec) bool {
+	if v.LTE(math.LegacyZeroDec()) {
+		return false
+	}
+
+	if v.Equal(math.LegacyOneDec()) {
+		return true
+	}
+
+	temp := v
+	ten := math.LegacyNewDec(10)
+
+	// Keep dividing by 10 while the result is >= 10
+	for temp.GTE(ten) {
+		quotient := temp.Quo(ten)
+		// Check if the division was exact (no remainder)
+		if !quotient.Mul(ten).Equal(temp) {
+			return false
+		}
+		temp = quotient
+	}
+
+	// After all divisions, we should have exactly 1
+	return temp.Equal(math.LegacyOneDec())
+}
+
+func ValidateMinNotional(i any) error {
 	v, ok := i.(math.LegacyDec)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -482,7 +470,7 @@ func ValidateMinNotional(i interface{}) error {
 	return nil
 }
 
-func ValidateMarginRatio(i interface{}) error {
+func ValidateMarginRatio(i any) error {
 	v, ok := i.(math.LegacyDec)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -491,7 +479,7 @@ func ValidateMarginRatio(i interface{}) error {
 	if v.IsNil() {
 		return fmt.Errorf("margin ratio cannot be nil: %s", v)
 	}
-	if v.LT(minMarginRatio) {
+	if v.LT(MinMarginRatio) {
 		return fmt.Errorf("margin ratio cannot be less than minimum: %s", v)
 	}
 	if v.GTE(math.LegacyOneDec()) {
@@ -501,7 +489,7 @@ func ValidateMarginRatio(i interface{}) error {
 	return nil
 }
 
-func validateFundingInterval(i interface{}) error {
+func ValidateFundingInterval(i any) error {
 	v, ok := i.(int64)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -514,7 +502,7 @@ func validateFundingInterval(i interface{}) error {
 	return nil
 }
 
-func validatePostOnlyModeHeightThreshold(i interface{}) error {
+func ValidatePostOnlyModeHeightThreshold(i any) error {
 	v, ok := i.(int64)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -527,7 +515,7 @@ func validatePostOnlyModeHeightThreshold(i interface{}) error {
 	return nil
 }
 
-func validateAdmins(i interface{}) error {
+func ValidateAdmins(i any) error {
 	v, ok := i.([]string)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -550,7 +538,34 @@ func validateAdmins(i interface{}) error {
 	return nil
 }
 
-func validateFundingMultiple(i interface{}) error {
+func ValidateWhiteKnightLiquidators(i any) error {
+	v, ok := i.([]string)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	if len(v) > MaxWhiteKnightLiquidators {
+		return fmt.Errorf("number of white knight liquidators cannot exceed %d: %d", MaxWhiteKnightLiquidators, len(v))
+	}
+
+	liquidators := make(map[string]struct{})
+
+	for _, liquidator := range v {
+		liquidatorAddr, err := sdk.AccAddressFromBech32(liquidator)
+		if err != nil {
+			return fmt.Errorf("invalid white knight liquidator address: %s", liquidator)
+		}
+
+		if _, found := liquidators[liquidatorAddr.String()]; found {
+			return fmt.Errorf("duplicate white knight liquidator: %s", liquidator)
+		}
+		liquidators[liquidatorAddr.String()] = struct{}{}
+	}
+
+	return nil
+}
+
+func ValidateFundingMultiple(i any) error {
 	v, ok := i.(int64)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -563,7 +578,7 @@ func validateFundingMultiple(i interface{}) error {
 	return nil
 }
 
-func validateDerivativeOrderSideCount(i interface{}) error {
+func ValidateDerivativeOrderSideCount(i any) error {
 	v, ok := i.(uint32)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -573,10 +588,15 @@ func validateDerivativeOrderSideCount(i interface{}) error {
 		return fmt.Errorf("DerivativeOrderSideCount must be positive: %d", v)
 	}
 
+	const maxDerivativeOrderSideCount = 1000
+	if v > maxDerivativeOrderSideCount {
+		return fmt.Errorf("DerivativeOrderSideCount must not exceed %d: %d", maxDerivativeOrderSideCount, v)
+	}
+
 	return nil
 }
 
-func validateInjRewardStakedRequirementThreshold(i interface{}) error {
+func ValidateInjRewardStakedRequirementThreshold(i any) error {
 	v, ok := i.(math.Int)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -593,7 +613,7 @@ func validateInjRewardStakedRequirementThreshold(i interface{}) error {
 	return nil
 }
 
-func validateTradingRewardsVestingDuration(i interface{}) error {
+func ValidateTradingRewardsVestingDuration(i any) error {
 	v, ok := i.(int64)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -606,7 +626,7 @@ func validateTradingRewardsVestingDuration(i interface{}) error {
 	return nil
 }
 
-func validateLiquidatorRewardShareRate(i interface{}) error {
+func ValidateLiquidatorRewardShareRate(i any) error {
 	v, ok := i.(math.LegacyDec)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -625,7 +645,11 @@ func validateLiquidatorRewardShareRate(i interface{}) error {
 	return nil
 }
 
-func validateAtomicMarketOrderAccessLevel(i interface{}) error {
+func ValidateWhiteKnightLiquidatorRewardShareRate(i any) error {
+	return ValidateLiquidatorRewardShareRate(i)
+}
+
+func ValidateAtomicMarketOrderAccessLevel(i any) error {
 	v, ok := i.(AtomicMarketOrderAccessLevel)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -636,7 +660,7 @@ func validateAtomicMarketOrderAccessLevel(i interface{}) error {
 	return nil
 }
 
-func validateAtomicMarketOrderFeeMultiplier(i interface{}) error {
+func ValidateAtomicMarketOrderFeeMultiplier(i any) error {
 	v, ok := i.(math.LegacyDec)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
@@ -654,7 +678,7 @@ func validateAtomicMarketOrderFeeMultiplier(i interface{}) error {
 	return nil
 }
 
-func validateBool(i interface{}) error {
+func ValidateBool(i any) error {
 	_, ok := i.(bool)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)

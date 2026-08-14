@@ -16,12 +16,15 @@ func main() {
 		panic(err)
 	}
 
+	symbol := "PYTH/USDT"
+	oracleType := "pricefeed"
+
 	ctx := context.Background()
-	res, err := exchangeClient.GetOracleList(ctx)
+	res, err := exchangeClient.GetOracleList(ctx, symbol, oracleType, "", 0)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	str, _ := json.MarshalIndent(res, "", " ")
+	str, _ := json.MarshalIndent(res, "", "\t")
 	fmt.Print(string(str))
 }
