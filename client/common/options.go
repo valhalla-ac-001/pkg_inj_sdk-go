@@ -27,7 +27,20 @@ type ClientOptions struct {
 	Logger                    *logrus.Logger
 	TxFactory                 *tx.Factory
 	ShouldFixSequenceMismatch bool
+	GRPCOnly                  bool
 	ErrChan                   chan error
+}
+
+// OptionGRPCOnly selects a client lifecycle that does not require the
+// context's Tendermint HTTP client. It is intended for bounded margin flows.
+// Callers must query fresh account/sequence values and supply them explicitly
+// to BuildSignedTx, then set their own transaction timeout height. This does
+// not change legacy broadcast-and-poll helpers that use Tendermint HTTP.
+func OptionGRPCOnly() ClientOption {
+	return func(opts *ClientOptions) error {
+		opts.GRPCOnly = true
+		return nil
+	}
 }
 
 type ClientOption func(opts *ClientOptions) error

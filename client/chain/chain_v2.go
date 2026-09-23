@@ -497,23 +497,38 @@ func NewChainClientV2(
 		wasmQueryClient:          wasmtypes.NewQueryClient(conn),
 		subaccountToNonce:        make(map[ethcommon.Hash]uint32),
 	}
+	if opts.GRPCOnly {
+		cc.ctx = cc.ctx.WithGRPCClient(conn)
+	}
 
 	cc.ofacChecker, err = NewOfacChecker()
 	if err != nil {
+		conn.Close()
+		chainStreamConn.Close()
 		return nil, errors.Wrap(err, "Error creating OFAC checker")
 	}
 	if cc.canSign {
-		var err error
-		account, err := cc.txFactory.AccountRetriever().GetAccount(ctx, ctx.GetFromAddress())
-		if err != nil {
-			err = errors.Wrapf(err, "failed to get account")
-			return nil, err
+		if opts.GRPCOnly {
+			if cc.ofacChecker.IsBlacklisted(ctx.GetFromAddress().String()) {
+				cc.Close()
+				return nil, errors.Errorf("Address %s is in the OFAC list", ctx.GetFromAddress())
+			}
+		} else {
+			var err error
+			account, err := cc.txFactory.AccountRetriever().GetAccount(ctx, ctx.GetFromAddress())
+			if err != nil {
+				cc.Close()
+				err = errors.Wrapf(err, "failed to get account")
+				return nil, err
+			}
+			if cc.ofacChecker.IsBlacklisted(account.GetAddress().String()) {
+				return nil, errors.Errorf("Address %s is in the OFAC list", account.GetAddress())
+			}
+			cc.accNum, cc.accSeq = account.GetAccountNumber(), account.GetSequence()
 		}
-		if cc.ofacChecker.IsBlacklisted(account.GetAddress().String()) {
-			return nil, errors.Errorf("Address %s is in the OFAC list", account.GetAddress())
+		if !opts.GRPCOnly {
+			go cc.syncTimeoutHeight()
 		}
-		cc.accNum, cc.accSeq = account.GetAccountNumber(), account.GetSequence()
-		go cc.syncTimeoutHeight()
 	}
 
 	return cc, nil
@@ -740,6 +755,7 @@ func (c *chainClientV2) BuildSignedTx(ctx context.Context, accNum, accSeq, initi
 }
 
 func (c *chainClientV2) buildSignedTx(ctx context.Context, txf tx.Factory, msgs ...sdk.Msg) ([]byte, error) {
+	var err error
 	if c.ctx.Simulate {
 		simTxBytes, err := txf.BuildSimTx(msgs...)
 		if err != nil {
@@ -761,9 +777,14 @@ func (c *chainClientV2) buildSignedTx(ctx context.Context, txf tx.Factory, msgs 
 		c.gasWanted = adjustedGas
 	}
 
-	txf, err := PrepareFactory(c.ctx, txf)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to prepareFactory")
+	// The explicit account/sequence passed to BuildSignedTx are authoritative
+	// in this mode, including valid zero values. PrepareFactory would otherwise
+	// re-query them with an implicit context outside the caller's deadline.
+	if !c.opts.GRPCOnly {
+		txf, err = PrepareFactory(c.ctx, txf)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to prepareFactory")
+		}
 	}
 
 	txn, err := txf.BuildUnsignedTx(msgs...)
