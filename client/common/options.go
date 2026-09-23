@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	ctypes "github.com/InjectiveLabs/sdk-go/chain/types"
 
 	log "github.com/InjectiveLabs/suplog"
@@ -28,6 +29,7 @@ type ClientOptions struct {
 	TxFactory                 *tx.Factory
 	ShouldFixSequenceMismatch bool
 	GRPCOnly                  bool
+	GRPCOnlyContext           context.Context
 	ErrChan                   chan error
 }
 
@@ -36,9 +38,12 @@ type ClientOptions struct {
 // Callers must query fresh account/sequence values and supply them explicitly
 // to BuildSignedTx, then set their own transaction timeout height. This does
 // not change legacy broadcast-and-poll helpers that use Tendermint HTTP.
-func OptionGRPCOnly() ClientOption {
+func OptionGRPCOnly(ctx ...context.Context) ClientOption {
 	return func(opts *ClientOptions) error {
 		opts.GRPCOnly = true
+		if len(ctx) > 0 {
+			opts.GRPCOnlyContext = ctx[0]
+		}
 		return nil
 	}
 }

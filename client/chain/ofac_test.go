@@ -1,7 +1,9 @@
 package chain_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"testing"
@@ -14,6 +16,14 @@ import (
 	cosmtypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/suite"
 )
+
+func TestDownloadOfacListContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := chain.DownloadOfacListContext(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled OFAC download, got %v", err)
+	}
+}
 
 type OfacTestSuite struct {
 	suite.Suite

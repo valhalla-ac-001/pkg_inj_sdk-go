@@ -450,6 +450,9 @@ func NewChainClientV2(
 	}
 	if err != nil {
 		err = errors.Wrapf(err, "failed to connect to the chain stream gRPC: %s", network.ChainStreamGrpcEndpoint)
+		if conn != nil {
+			conn.Close()
+		}
 		return nil, err
 	}
 
@@ -501,7 +504,11 @@ func NewChainClientV2(
 		cc.ctx = cc.ctx.WithGRPCClient(conn)
 	}
 
-	cc.ofacChecker, err = NewOfacChecker()
+	if opts.GRPCOnly {
+		cc.ofacChecker, err = NewOfacCheckerContext(opts.GRPCOnlyContext)
+	} else {
+		cc.ofacChecker, err = NewOfacChecker()
+	}
 	if err != nil {
 		conn.Close()
 		chainStreamConn.Close()
@@ -522,6 +529,7 @@ func NewChainClientV2(
 				return nil, err
 			}
 			if cc.ofacChecker.IsBlacklisted(account.GetAddress().String()) {
+				cc.Close()
 				return nil, errors.Errorf("Address %s is in the OFAC list", account.GetAddress())
 			}
 			cc.accNum, cc.accSeq = account.GetAccountNumber(), account.GetSequence()
@@ -602,10 +610,6 @@ func (c *chainClientV2) FromAddress() sdk.AccAddress {
 }
 
 func (c *chainClientV2) Close() {
-	if !c.canSign {
-		return
-	}
-
 	if c.cancelFn != nil {
 		c.cancelFn()
 	}
