@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/stats"
 )
 
 func init() {
@@ -31,6 +32,7 @@ type ClientOptions struct {
 	GRPCOnly                  bool
 	GRPCOnlyContext           context.Context
 	ErrChan                   chan error
+	GRPCStatsHandler          stats.Handler
 }
 
 // OptionGRPCOnly selects a client lifecycle that does not require the
@@ -108,6 +110,15 @@ func OptionErrChan(errChan chan error) ClientOption {
 func OptionIsDynamicGasPrices(isDynamic bool) ClientOption {
 	return func(opts *ClientOptions) error {
 		opts.IsDynamicGasPrices = isDynamic
+		return nil
+	}
+}
+
+// OptionGRPCStatsHandler enables opt-in transport observations on exchange clients.
+// A nil handler preserves the existing connection behavior.
+func OptionGRPCStatsHandler(handler stats.Handler) ClientOption {
+	return func(opts *ClientOptions) error {
+		opts.GRPCStatsHandler = handler
 		return nil
 	}
 }

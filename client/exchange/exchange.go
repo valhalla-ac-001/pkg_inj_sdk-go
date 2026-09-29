@@ -118,12 +118,16 @@ func NewExchangeClient(network common.Network, options ...common.ClientOption) (
 	// create grpc client
 	var conn *grpc.ClientConn
 	var err error
+	dialOptions := []grpc.DialOption{grpc.WithContextDialer(common.DialerFunc)}
 	if opts.TLSCert != nil {
-		conn, err = grpc.NewClient(network.ExchangeGrpcEndpoint, grpc.WithTransportCredentials(opts.TLSCert), grpc.WithContextDialer(common.DialerFunc))
+		dialOptions = append(dialOptions, grpc.WithTransportCredentials(opts.TLSCert))
 	} else {
-
-		conn, err = grpc.NewClient(network.ExchangeGrpcEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(common.DialerFunc))
+		dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
+	if opts.GRPCStatsHandler != nil {
+		dialOptions = append(dialOptions, grpc.WithStatsHandler(opts.GRPCStatsHandler))
+	}
+	conn, err = grpc.NewClient(network.ExchangeGrpcEndpoint, dialOptions...)
 	if err != nil {
 		err := errors.Wrapf(err, "failed to connect to the gRPC: %s", network.ExchangeGrpcEndpoint)
 		return nil, err
@@ -230,7 +234,10 @@ func (c *exchangeClient) GetDerivativeOrders(ctx context.Context, req *derivativ
 func (c *exchangeClient) GetDerivativePositionsV2(ctx context.Context, req *derivativeExchangePB.PositionsV2Request) (*derivativeExchangePB.PositionsV2Response, error) {
 	res, err := common.ExecuteCall(ctx, c.network.ExchangeCookieAssistant, c.derivativeExchangeClient.PositionsV2, req)
 	if err != nil {
-		fmt.Println(err)
+		// Instrumented callers emit their own structured RPC diagnostic.
+		if c.opts.GRPCStatsHandler == nil {
+			fmt.Println(err)
+		}
 		return &derivativeExchangePB.PositionsV2Response{}, err
 	}
 
