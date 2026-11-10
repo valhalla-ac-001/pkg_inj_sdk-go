@@ -33,6 +33,16 @@ type ClientOptions struct {
 	GRPCOnlyContext           context.Context
 	ErrChan                   chan error
 	GRPCStatsHandler          stats.Handler
+	ChainGRPCCredentials      credentials.PerRPCCredentials
+}
+
+// OptionChainGRPCCredentials authenticates only the primary chain gRPC
+// connection. Credentials are never sent to the separate chain-stream client.
+func OptionChainGRPCCredentials(auth credentials.PerRPCCredentials) ClientOption {
+	return func(opts *ClientOptions) error {
+		opts.ChainGRPCCredentials = auth
+		return nil
+	}
 }
 
 // OptionGRPCOnly selects a client lifecycle that does not require the

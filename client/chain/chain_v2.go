@@ -407,25 +407,23 @@ func NewChainClientV2(
 		return nil, errors.New("codec is not a proto codec")
 	}
 
-	var conn *grpc.ClientConn
-	var err error
-	stickySessionEnabled := true
-	if opts.TLSCert != nil {
-		conn, err = grpc.NewClient(
-			network.ChainGrpcEndpoint,
-			grpc.WithTransportCredentials(opts.TLSCert),
-			grpc.WithContextDialer(common.DialerFunc),
-			grpc.WithDefaultCallOptions(grpc.ForceCodec(protoCodec.GRPCCodec())),
-		)
-	} else {
-		conn, err = grpc.NewClient(
-			network.ChainGrpcEndpoint,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithContextDialer(common.DialerFunc),
-			grpc.WithDefaultCallOptions(grpc.ForceCodec(protoCodec.GRPCCodec())),
-		)
-		stickySessionEnabled = false
+	chainDialOptions := []grpc.DialOption{
+		grpc.WithContextDialer(common.DialerFunc),
+		grpc.WithDefaultCallOptions(grpc.ForceCodec(protoCodec.GRPCCodec())),
 	}
+	stickySessionEnabled := opts.TLSCert != nil
+	if opts.TLSCert != nil {
+		chainDialOptions = append(chainDialOptions, grpc.WithTransportCredentials(opts.TLSCert))
+	} else {
+		if opts.ChainGRPCCredentials != nil {
+			return nil, errors.New("chain gRPC authentication requires TLS")
+		}
+		chainDialOptions = append(chainDialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+	if opts.ChainGRPCCredentials != nil {
+		chainDialOptions = append(chainDialOptions, grpc.WithPerRPCCredentials(opts.ChainGRPCCredentials))
+	}
+	conn, err := grpc.NewClient(network.ChainGrpcEndpoint, chainDialOptions...)
 	if err != nil {
 		err = errors.Wrapf(err, "failed to connect to the gRPC: %s", network.ChainGrpcEndpoint)
 		return nil, err
